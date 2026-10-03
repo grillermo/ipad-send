@@ -104,3 +104,13 @@ test("sanitizes the raw fallback too", () => {
   assert.match(result.content, /Sign in/);
   assert.doesNotMatch(result.content, /javascript:|onclick|<form|<input|<meta|svg\+xml/i);
 });
+
+test("applies the link allow-list to image map areas too", () => {
+  const inner = `<img usemap="#m" src="data:image/png;base64,iVBORw0KGgo=" alt="map">
+    <map name="m"><area href="javascript:alert(1)" shape="rect" coords="0,0,9,9"><area href="https://example.org/ok" shape="rect" coords="0,0,9,9"></map>
+    <p>${LONG}</p>`;
+  const { content } = extract(page(inner), PAGE_URL, { imageUrl });
+
+  assert.doesNotMatch(content, /javascript:/i);
+  assert.match(content, /href="https:\/\/example\.org\/ok"/);
+});

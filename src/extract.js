@@ -66,7 +66,7 @@ function resolveLazyImages(document) {
 
 function absolutizeUrls(document) {
   // JSDOM resolves .href/.src against the page URL passed to the constructor.
-  for (const a of document.querySelectorAll("a[href]")) a.setAttribute("href", a.href);
+  for (const a of document.querySelectorAll("a[href], area[href]")) a.setAttribute("href", a.href);
   for (const img of document.querySelectorAll("img[src]")) img.setAttribute("src", img.src);
 }
 
@@ -79,7 +79,7 @@ function sanitize(document, html, imageUrl) {
       if (name.toLowerCase().startsWith("on") || DROPPED_ATTRIBUTES.has(name.toLowerCase())) el.removeAttribute(name);
     }
   }
-  for (const a of container.querySelectorAll("a[href]")) {
+  for (const a of container.querySelectorAll("a[href], area[href]")) {
     if (isSafeLink(a.getAttribute("href"))) a.setAttribute("target", "_blank");
     else a.removeAttribute("href");
   }
