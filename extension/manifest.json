@@ -3,11 +3,11 @@
   "name": "Send to iPad",
   "version": "1.0.0",
   "description": "Send the current page to the iPad reader.",
-  "icons": { "128": "icon.png" },
+  "icons": { "16": "icon-16.png", "32": "icon-32.png", "48": "icon-48.png", "128": "icon-128.png" },
   "permissions": ["scripting", "storage", "notifications", "activeTab"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
-  "action": { "default_title": "Send to iPad" },
+  "action": { "default_title": "Send to iPad", "default_icon": { "16": "icon-16.png", "32": "icon-32.png" } },
   "options_page": "options.html",
   "commands": {
     "send-to-ipad": {

@@ -32,7 +32,7 @@ async function sendTab(tab) {
     await flash(tab.id, "✗", "#cc3333").catch(() => {});
     chrome.notifications.create({
       type: "basic",
-      iconUrl: "icon.png",
+      iconUrl: "icon-128.png",
       title: "Send to iPad failed",
       message: error.message,
     });
