@@ -1,7 +1,11 @@
 import { Readability } from "@mozilla/readability";
 import { JSDOM, VirtualConsole } from "jsdom";
 
-const STRIP_SELECTOR = "script, style, noscript, iframe, object, embed, svg, video, audio, canvas";
+const STRIP_SELECTOR = "script, style, noscript, iframe, object, embed, svg, video, audio, canvas, " +
+  "form, input, textarea, select, meta, link, base, applet, frame, frameset, template, math";
+const DROPPED_ATTRIBUTES = new Set(["style", "formaction", "action", "srcdoc", "xlink:href"]);
+const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+const SAFE_DATA_IMAGE = /^data:image\/(png|jpe?g|gif|webp)[;,]/i;
 const LAZY_SRC_ATTRIBUTES = ["data-src", "data-original", "data-lazy-src", "data-url"];
 const MAX_SRCSET_WIDTH = 2048;
 const MIN_ARTICLE_TEXT = 140;
@@ -72,19 +76,28 @@ function sanitize(document, html, imageUrl) {
 
   for (const el of container.querySelectorAll("*")) {
     for (const { name } of [...el.attributes]) {
-      if (name.startsWith("on") || name === "style") el.removeAttribute(name);
+      if (name.toLowerCase().startsWith("on") || DROPPED_ATTRIBUTES.has(name.toLowerCase())) el.removeAttribute(name);
     }
   }
   for (const a of container.querySelectorAll("a[href]")) {
-    if (/^javascript:/i.test(a.getAttribute("href"))) a.removeAttribute("href");
-    else a.setAttribute("target", "_blank");
+    if (isSafeLink(a.getAttribute("href"))) a.setAttribute("target", "_blank");
+    else a.removeAttribute("href");
   }
   for (const img of container.querySelectorAll("img")) {
-    const src = img.getAttribute("src") || "";
-    if (/^https?:\/\//.test(src)) img.setAttribute("src", imageUrl(src));
-    else if (!src.startsWith("data:")) img.remove();
+    const src = (img.getAttribute("src") || "").trim();
+    if (/^https?:\/\//i.test(src)) img.setAttribute("src", imageUrl(src));
+    else if (!SAFE_DATA_IMAGE.test(src)) img.remove(); // data: images deliberately bypass the proxy
     img.removeAttribute("width");
     img.removeAttribute("height");
   }
   return container.innerHTML;
+}
+
+function isSafeLink(href) {
+  try {
+    // The URL parser strips tabs/newlines and lowercases the scheme, like browsers do.
+    return SAFE_LINK_PROTOCOLS.has(new URL(href.trim()).protocol);
+  } catch {
+    return false;
+  }
 }

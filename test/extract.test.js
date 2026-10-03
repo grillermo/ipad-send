@@ -53,3 +53,54 @@ test("falls back to the raw page body when Readability finds no article, instead
   assert.equal(result.title, "Login");
   assert.match(result.content, /Sign in/);
 });
+
+const LONG = "Tides are caused mostly by the gravitational pull of the moon, which tugs on the oceans and raises a bulge of water. ".repeat(3);
+const page = (inner) => `<html><head><title>T</title></head><body><article><h1>T</h1><p>${LONG}</p>${inner}</article></body></html>`;
+
+test("removes href from links with obfuscated or non-allow-listed schemes", () => {
+  const inner = `<p>
+    <a href="JaVaScRiPt:alert(1)">a</a>
+    <a href="  java&#9;script:alert(2)">b</a>
+    <a href="jav&#x09;ascript:alert(3)">c</a>
+    <a href="vbscript:msgbox(1)">d</a>
+    <a href="data:text/html,<script>alert(4)</script>">e</a>
+    <a href="mailto:a@example.com">ok</a>
+    <a href="/safe">safe</a>
+  </p><p>${LONG}</p>`;
+  const { content } = extract(page(inner), PAGE_URL, { imageUrl });
+
+  assert.doesNotMatch(content, /javascript:|vbscript:|data:text/i);
+  assert.match(content, /href="mailto:a@example\.com"/);
+  assert.match(content, /href="https:\/\/example\.com\/safe"/);
+});
+
+test("drops forms, form actions, meta refresh and base so the page cannot redirect or post", () => {
+  const inner = `<form action="https://evil.example/post"><input name="x"><button formaction="https://evil.example/x">Go</button></form>
+    <meta http-equiv="refresh" content="0;url=https://evil.example"><base href="https://evil.example/">
+    <p>${LONG}</p>`;
+  const { content } = extract(page(inner), PAGE_URL, { imageUrl });
+
+  assert.doesNotMatch(content, /<form|<input|<meta|<base|formaction|action=|evil\.example/i);
+});
+
+test("keeps only raster data: images and removes svg or html data: images", () => {
+  const inner = `<img src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" alt="svg">
+    <img src="data:text/html;base64,PHNjcmlwdD4=" alt="html">
+    <img src="data:image/png;base64,iVBORw0KGgo=" alt="png">
+    <p>${LONG}</p>`;
+  const { content } = extract(page(inner), PAGE_URL, { imageUrl });
+
+  assert.doesNotMatch(content, /svg\+xml|text\/html/);
+  assert.match(content, /data:image\/png/);
+});
+
+test("sanitizes the raw fallback too", () => {
+  const html = `<html><head><title>X</title><meta http-equiv="refresh" content="0;url=https://evil.example"></head><body>
+    <a href="javascript:alert(1)" onclick="x()">Sign in</a><form action="/p"><input name="q"></form>
+    <img src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="></body></html>`;
+  const result = extract(html, PAGE_URL, { imageUrl });
+
+  assert.equal(result.raw, true);
+  assert.match(result.content, /Sign in/);
+  assert.doesNotMatch(result.content, /javascript:|onclick|<form|<input|<meta|svg\+xml/i);
+});
