@@ -4,6 +4,8 @@
   // Server holds polls for 25s; if nothing comes back in 35s the XHR is hung (screen lock).
   var POLL_WATCHDOG_MS = 35000;
   var THEMES = ['light', 'sepia', 'dark'];
+  var LOADING_HTML = '<p class="empty">Loading&hellip;</p>';
+  var ERROR_HTML = '<p class="empty">Could not load this document.</p>';
   var EMPTY_HTML = '<p class="empty">Waiting for documents&hellip;</p>';
 
   var version = -1;
@@ -16,7 +18,10 @@
   var docXhr = null;
   var docAttempt = 0;
   var docWatchdog = null;
-  var DOC_RETRY_MS = 2000;
+  var DOC_RETRY_MIN_MS = 2000;
+  var DOC_RETRY_MAX_MS = 10000;
+  var docRetryDelay = DOC_RETRY_MIN_MS;
+  var stateGeneration = 0;
   var DOC_WATCHDOG_MS = 20000;
 
   function $(id) { return document.getElementById(id); }
@@ -107,6 +112,10 @@
       return;
     }
 
+    // Never show the previous body under the new id.
+    $('article').innerHTML = LOADING_HTML;
+    show('original', false);
+    docRetryDelay = DOC_RETRY_MIN_MS;
     loadDoc(doc);
   }
 
@@ -115,12 +124,18 @@
     clearTimeout(docWatchdog);
     if (docXhr) docXhr.abort();
 
-    function retry() {
+    function retry(status) {
       if (attempt !== docAttempt || shownId !== doc.id) return; // superseded or navigated away
       clearTimeout(docWatchdog);
+      if (status >= 400 && status < 500) { // terminal, e.g. 404 for an evicted doc
+        $('article').innerHTML = ERROR_HTML;
+        return;
+      }
+      var delay = docRetryDelay;
+      docRetryDelay = Math.min(docRetryDelay * 2, DOC_RETRY_MAX_MS);
       setTimeout(function () {
         if (attempt === docAttempt && shownId === doc.id) loadDoc(doc);
-      }, DOC_RETRY_MS);
+      }, delay);
     }
 
     // xhr.timeout is unreliable on iOS 5, so abort hung requests ourselves.
@@ -132,6 +147,7 @@
     docXhr = request('GET', '/api/doc/' + doc.id, null, function (html) {
       if (attempt !== docAttempt || shownId !== doc.id) return;
       clearTimeout(docWatchdog);
+      docRetryDelay = DOC_RETRY_MIN_MS;
       $('article').innerHTML = header(doc) + html;
       if (safeUrl(doc.url) === '#') {
         show('original', false);
@@ -145,14 +161,27 @@
   }
 
   function refreshState() {
-    request('GET', '/api/state', null, function (text) {
-      var state;
-      try { state = JSON.parse(text); } catch (e) { setTimeout(refreshState, 2000); return; }
-      version = state.version;
-      render(state);
-    }, function () {
-      setTimeout(refreshState, 2000);
-    });
+    var generation = ++stateGeneration;
+
+    function again() {
+      setTimeout(function () {
+        if (generation === stateGeneration) attempt();
+      }, 2000);
+    }
+
+    function attempt() {
+      request('GET', '/api/state', null, function (text) {
+        if (generation !== stateGeneration) return;
+        var state;
+        try { state = JSON.parse(text); } catch (e) { again(); return; }
+        version = state.version;
+        render(state);
+      }, function () {
+        if (generation === stateGeneration) again();
+      });
+    }
+
+    attempt();
   }
 
   function setOnline(online) { $('status').className = online ? '' : 'offline'; }
@@ -168,10 +197,10 @@
 
     pollXhr = request('GET', '/api/wait?since=' + version, null, function (text) {
       if (generation !== pollGeneration) return;
-      setOnline(true);
-      retryDelay = RETRY_MIN_MS;
       var latest;
       try { latest = JSON.parse(text).version; } catch (e) { pollFailed(); return; }
+      setOnline(true);
+      retryDelay = RETRY_MIN_MS;
       if (latest !== version) {
         version = latest; // set now so the next poll waits instead of returning immediately
         refreshState();
@@ -196,6 +225,7 @@
       var state;
       try { state = JSON.parse(text); } catch (e) { refreshState(); return; }
       version = state.version;
+      stateGeneration++; // fresh state supersedes any in-flight refresh chain
       render(state);
     });
   }
