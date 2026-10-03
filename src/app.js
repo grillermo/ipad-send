@@ -24,8 +24,8 @@ export function createApp({ dataDir, waitTimeoutMs = 25_000, fetchImpl = fetch }
     "/api/send",
     bodyLimit({ maxSize: MAX_PAGE_BYTES, onError: (c) => c.json({ error: "Page is larger than 20MB" }, 413) }),
     async (c) => {
-      const { url, title, html } = await c.req.json();
-      if (!html) return c.json({ error: "Missing html" }, 400);
+      const { url, title, html } = (await c.req.json().catch(() => null)) ?? {};
+      if (typeof html !== "string" || !html) return c.json({ error: "Missing html" }, 400);
 
       const startedAt = performance.now();
       const article = extract(html, url, { imageUrl: (src) => proxiedImageUrl(src, url) });
@@ -44,7 +44,7 @@ export function createApp({ dataDir, waitTimeoutMs = 25_000, fetchImpl = fetch }
   });
 
   app.post("/api/advance", async (c) => {
-    const { from } = await c.req.json().catch(() => ({}));
+    const { from } = (await c.req.json().catch(() => null)) ?? {};
     queue.advance(from);
     return c.json(queue.snapshot());
   });

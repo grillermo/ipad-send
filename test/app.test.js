@@ -93,3 +93,24 @@ test("the reader page is served at /", async () => {
   assert.equal(response.status, 200);
   assert.match(await response.text(), /reader\.js/);
 });
+
+const post = (app, path, body) =>
+  app.request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+
+test("send rejects malformed json, an empty body, null and non-string html with 400", async () => {
+  const app = build();
+
+  for (const body of ["{not json", "", "null", JSON.stringify({ html: 42 })]) {
+    assert.equal((await post(app, "/api/send", body)).status, 400, `body: ${body}`);
+  }
+});
+
+test("advance with a null body returns the unchanged state", async () => {
+  const app = build();
+  const { id } = await json(send(app));
+
+  const response = await post(app, "/api/advance", "null");
+
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).current.id, id);
+});
