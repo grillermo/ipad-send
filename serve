@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Run the server on demand in a detached tmux session, then attach to it.
+# Re-running restarts it (pulling + installing first). Stop it with:
+#   tmux kill-session -t ipad-send
+set -euo pipefail
+
+APP_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$APP_DIR"
+
+SESSION='ipad-send'
+PORT="${PORT:-7777}"
+
+port_listeners() {
+  lsof -ti "tcp:$PORT" -sTCP:LISTEN 2>/dev/null || true
+}
+
+# The previous occupant of the port is a previous run of this server; reclaim it.
+free_port() {
+  local pids
+  pids=$(port_listeners)
+  [ -n "$pids" ] || return 0
+  echo "==> Port $PORT held by PID(s): $(echo "$pids" | tr '\n' ' ')- stopping"
+  # shellcheck disable=SC2086
+  kill $pids 2>/dev/null || true
+  for _ in $(seq 1 10); do
+    sleep 0.5
+    [ -n "$(port_listeners)" ] || return 0
+  done
+  pids=$(port_listeners)
+  # shellcheck disable=SC2086
+  [ -z "$pids" ] || kill -9 $pids 2>/dev/null || true
+  sleep 1
+  [ -z "$(port_listeners)" ] || { echo "ERROR: could not free port $PORT."; exit 1; }
+}
+
+# 1. Update code and deps. Skip the pull when there are local edits.
+if [ -z "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "==> git pull"
+  git pull --ff-only github main || echo "WARNING: git pull failed; serving current checkout."
+else
+  echo "==> Local changes present; skipping git pull"
+fi
+echo "==> npm install"
+npm install --no-audit --no-fund
+
+# 2. (Re)start the server in a fresh tmux session.
+#    tmux panes don't inherit this shell's env, so pass PATH explicitly.
+tmux kill-session -t "$SESSION" 2>/dev/null || true
+free_port
+mkdir -p log
+tmux new-session -d -s "$SESSION" -x 200 -y 50
+tmux set-option -t "$SESSION" remain-on-exit on >/dev/null
+tmux respawn-pane -k -t "$SESSION" \
+  "cd '$APP_DIR' && export PATH='$PATH' PORT='$PORT' && node src/main.js 2>&1 | tee -a log/server.log"
+
+# 3. Wait until it answers.
+echo "==> Waiting for server on port $PORT..."
+for _ in $(seq 1 20); do
+  if curl -sf "http://127.0.0.1:$PORT/api/state" >/dev/null; then
+    break
+  fi
+  if [ "$(tmux display-message -p -t "$SESSION" '#{pane_dead}')" = "1" ]; then
+    echo "ERROR: server exited on boot."
+    tmux capture-pane -p -S -200 -t "$SESSION" | grep -v '^$' | tail -n 25
+    exit 1
+  fi
+  sleep 0.5
+done
+curl -sf "http://127.0.0.1:$PORT/api/state" >/dev/null \
+  || { echo "ERROR: server not answering after 10s."; exit 1; }
+
+HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s).local"
+IP="$(ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || true)"
+echo "==> Serving on http://$HOST:$PORT${IP:+  (http://$IP:$PORT)}"
+echo "    Set this URL in the Chrome extension options and open it on the iPad."
+
+# 4. Attach (or switch, inside tmux). Skip when there's no TTY.
+if [ -n "${TMUX:-}" ]; then
+  tmux switch-client -t "$SESSION"
+elif [ -t 1 ]; then
+  echo "==> Attaching to '$SESSION' (detach with Ctrl-b d)"
+  tmux attach-session -t "$SESSION"
+else
+  echo "==> No TTY; not attaching. Run: tmux attach -t $SESSION"
+fi

@@ -6,12 +6,13 @@ Send the current Chrome tab to a 1st-gen iPad (iOS 5.1.1) as clean, readable HTM
 
 ```bash
 npm install
-./script/install-launchd        # runs the server at login on :7777
+./serve                         # (re)starts the server on :7777 in tmux session "ipad-send"
 ```
 
 - Chrome: `chrome://extensions` → Developer mode → Load unpacked → `extension/`.
   Default hotkey `⌥⇧I`; change it at `chrome://extensions/shortcuts`.
-  Server URL (default `http://localhost:7777`) is in the extension options.
+  Server URL (default `http://localhost:7777`) is in the extension options; point it
+  at `http://<server-host>.local:7777` when the server runs on another machine.
 - iPad: open `http://<LocalHostName>.local:7777` in Safari → Share → Add to Home Screen.
   If `.local` doesn't resolve, use the Mac's LAN IP.
 
@@ -26,6 +27,7 @@ Hotkey → the page shows on the iPad. If you're already reading, it's queued: t
 npm test        # node:test suite
 npm run lint    # ES5 check for the iPad script
 npm start       # foreground server
+tmux kill-session -t ipad-send   # stop ./serve
 tail -f log/server.log
 ```
 
