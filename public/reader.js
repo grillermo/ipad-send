@@ -13,6 +13,11 @@
   var pollWatchdog = null;
   var retryDelay = RETRY_MIN_MS;
   var saveScrollTimer = null;
+  var docXhr = null;
+  var docAttempt = 0;
+  var docWatchdog = null;
+  var DOC_RETRY_MS = 2000;
+  var DOC_WATCHDOG_MS = 20000;
 
   function $(id) { return document.getElementById(id); }
 
@@ -66,6 +71,10 @@
     return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  function safeUrl(url) {
+    return /^https?:\/\//i.test(url || '') ? url : '#';
+  }
+
   function hostOf(url) {
     var match = /^https?:\/\/([^\/]+)/.exec(url || '');
     return match ? match[1] : 'original';
@@ -75,7 +84,7 @@
     var html = '<h1>' + escapeHtml(doc.title || doc.url) + '</h1><p class="meta">';
     if (doc.raw) html += '<span class="raw">raw page</span> ';
     if (doc.byline) html += escapeHtml(doc.byline) + ' &middot; ';
-    return html + '<a href="' + escapeHtml(doc.url) + '" target="_blank">' + escapeHtml(hostOf(doc.url)) + '</a></p>';
+    return html + '<a href="' + escapeHtml(safeUrl(doc.url)) + '" target="_blank" rel="noopener">' + escapeHtml(hostOf(doc.url)) + '</a></p>';
   }
 
   function show(id, display) { $(id).style.display = display ? 'inline-block' : 'none'; }
@@ -98,21 +107,47 @@
       return;
     }
 
-    request('GET', '/api/doc/' + doc.id, null, function (html) {
-      if (shownId !== doc.id) return;
+    loadDoc(doc);
+  }
+
+  function loadDoc(doc) {
+    var attempt = ++docAttempt;
+    clearTimeout(docWatchdog);
+    if (docXhr) docXhr.abort();
+
+    function retry() {
+      if (attempt !== docAttempt || shownId !== doc.id) return; // superseded or navigated away
+      clearTimeout(docWatchdog);
+      setTimeout(function () {
+        if (attempt === docAttempt && shownId === doc.id) loadDoc(doc);
+      }, DOC_RETRY_MS);
+    }
+
+    // xhr.timeout is unreliable on iOS 5, so abort hung requests ourselves.
+    docWatchdog = setTimeout(function () {
+      if (attempt !== docAttempt || shownId !== doc.id) return;
+      loadDoc(doc);
+    }, DOC_WATCHDOG_MS);
+
+    docXhr = request('GET', '/api/doc/' + doc.id, null, function (html) {
+      if (attempt !== docAttempt || shownId !== doc.id) return;
+      clearTimeout(docWatchdog);
       $('article').innerHTML = header(doc) + html;
-      $('original').href = doc.url;
-      show('original', true);
+      if (safeUrl(doc.url) === '#') {
+        show('original', false);
+      } else {
+        $('original').href = doc.url;
+        show('original', true);
+      }
       document.title = doc.title || 'iPad Send';
       window.scrollTo(0, parseInt(getPref('pos:' + doc.id, '0'), 10));
-    }, function () {
-      shownId = null; // let the next state refresh retry
-    });
+    }, retry);
   }
 
   function refreshState() {
     request('GET', '/api/state', null, function (text) {
-      var state = JSON.parse(text);
+      var state;
+      try { state = JSON.parse(text); } catch (e) { setTimeout(refreshState, 2000); return; }
       version = state.version;
       render(state);
     }, function () {
@@ -135,13 +170,16 @@
       if (generation !== pollGeneration) return;
       setOnline(true);
       retryDelay = RETRY_MIN_MS;
-      var latest = JSON.parse(text).version;
+      var latest;
+      try { latest = JSON.parse(text).version; } catch (e) { pollFailed(); return; }
       if (latest !== version) {
         version = latest; // set now so the next poll waits instead of returning immediately
         refreshState();
       }
       poll();
-    }, function () {
+    }, pollFailed);
+
+    function pollFailed() {
       if (generation !== pollGeneration) return; // aborted by a newer poll
       setOnline(false);
       clearTimeout(pollWatchdog);
@@ -149,13 +187,14 @@
         if (generation === pollGeneration) poll();
       }, retryDelay);
       retryDelay = Math.min(retryDelay * 2, RETRY_MAX_MS);
-    });
+    }
   }
 
   function advance() {
     if (!shownId) return;
     request('POST', '/api/advance', { from: shownId }, function (text) {
-      var state = JSON.parse(text);
+      var state;
+      try { state = JSON.parse(text); } catch (e) { refreshState(); return; }
       version = state.version;
       render(state);
     });

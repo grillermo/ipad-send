@@ -27,6 +27,8 @@ export function createApp({ dataDir, waitTimeoutMs = 25_000, fetchImpl = fetch }
       const { url, title, html } = (await c.req.json().catch(() => null)) ?? {};
       if (typeof html !== "string" || !html) return c.json({ error: "Missing html" }, 400);
 
+      if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return c.json({ error: "url must be http(s)" }, 400);
+
       const startedAt = performance.now();
       const article = extract(html, url, { imageUrl: (src) => proxiedImageUrl(src, url) });
       const doc = queue.push({ ...article, url, title: article.title || title || url });

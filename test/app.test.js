@@ -47,6 +47,13 @@ test("rejects a send without html", async () => {
   assert.equal(response.status, 400);
 });
 
+test("rejects a send whose url is not http(s)", async () => {
+  for (const url of ["javascript:alert(1)", "data:text/html,x", "ftp://x.com", "", 5, null, undefined]) {
+    const response = await send(build(), { url, title: "t", html: fixture });
+    assert.equal(response.status, 400, `url: ${url}`);
+  }
+});
+
 test("a waiting iPad is woken up by a send", async () => {
   const app = build();
   const { version } = await json(app.request("/api/state"));
