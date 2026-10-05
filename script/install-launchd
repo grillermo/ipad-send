@@ -17,6 +17,7 @@ cat > "$PLIST" <<EOF
   <key>Label</key><string>$LABEL</string>
   <key>ProgramArguments</key>
   <array><string>$NODE</string><string>$ROOT/src/main.js</string></array>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>$PATH</string></dict>
   <key>WorkingDirectory</key><string>$ROOT</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>

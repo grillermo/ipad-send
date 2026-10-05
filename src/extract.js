@@ -15,11 +15,7 @@ const ANCHOR_MARKER = "data-ipad-send-anchor";
 const ANCHOR_ID = "ipad-send-continue";
 
 export function extract(html, pageUrl, { imageUrl }) {
-  // Silent VirtualConsole: JSDOM otherwise logs every CSS parse error to stderr.
-  const { document } = new JSDOM(html, { url: baseUrl(pageUrl), virtualConsole: new VirtualConsole() }).window;
-  document.querySelectorAll(STRIP_SELECTOR).forEach((el) => el.remove());
-  resolveLazyImages(document);
-  absolutizeUrls(document);
+  const document = load(html, pageUrl);
 
   // Readability mutates the document it reads, so give it a copy and keep the original for the fallback.
   const article = new Readability(document.cloneNode(true)).parse();
@@ -31,6 +27,34 @@ export function extract(html, pageUrl, { imageUrl }) {
     byline: raw ? null : article.byline || null,
     content: sanitize(document, body, imageUrl),
     raw,
+  };
+}
+
+// html is pandoc output for a markdown file (see src/markdown.js), so it is already just the article.
+// line is the 1-based source line at the top of Chrome's window. The anchor goes before the first (outermost)
+// element on the closest line that starts at or before it.
+export function extractMarkdown(html, pageUrl, { imageUrl, line }) {
+  const document = load(html, pageUrl);
+  const positioned = [...document.body.querySelectorAll("[data-pos]")];
+
+  if (line > 0) {
+    const closest = Math.max(0, ...positioned.map(startLine).filter((start) => start !== null && start <= line));
+    const target = positioned.find((el) => startLine(el) === closest);
+    if (target) {
+      const marker = document.createElement("span");
+      marker.setAttribute(ANCHOR_MARKER, "0");
+      target.before(marker);
+    }
+  }
+  // Pandoc wraps every word in a span for sourcepos; unwrap them so the iPad doesn't carry that DOM.
+  document.body.querySelectorAll("span[data-wrapper]").forEach((span) => span.replaceWith(...span.childNodes));
+  positioned.forEach((el) => el.removeAttribute("data-pos"));
+
+  return {
+    title: document.querySelector("h1")?.textContent.trim() || fileName(pageUrl),
+    byline: null,
+    content: sanitize(document, document.body.innerHTML, imageUrl),
+    raw: false,
   };
 }
 
@@ -46,6 +70,28 @@ export function pickFromSrcset(srcset) {
     .sort((a, b) => a.size - b.size);
   const fitting = candidates.filter((candidate) => candidate.size <= MAX_SRCSET_WIDTH);
   return (fitting.at(-1) ?? candidates[0])?.url ?? null;
+}
+
+function load(html, pageUrl) {
+  // Silent VirtualConsole: JSDOM otherwise logs every CSS parse error to stderr.
+  const { document } = new JSDOM(html, { url: baseUrl(pageUrl), virtualConsole: new VirtualConsole() }).window;
+  document.querySelectorAll(STRIP_SELECTOR).forEach((el) => el.remove());
+  resolveLazyImages(document);
+  absolutizeUrls(document);
+  return document;
+}
+
+function startLine(el) {
+  const match = /(\d+):\d+-/.exec(el.getAttribute("data-pos"));
+  return match ? Number(match[1]) : null;
+}
+
+function fileName(pageUrl) {
+  try {
+    return decodeURIComponent(new URL(pageUrl).pathname.split("/").pop()) || null;
+  } catch {
+    return null;
+  }
 }
 
 function baseUrl(pageUrl) {

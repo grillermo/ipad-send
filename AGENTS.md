@@ -18,7 +18,7 @@ npm start                                        # foreground server on :7777 (P
 tail -f log/server.log
 ```
 
-Node ≥ 22 is required.
+Node ≥ 22 and `pandoc` (3.8+, on PATH or set `PANDOC`) are required.
 Runtime data is in `data/` (`history.json`, `docs/<id>.html`, `images/` cache). Delete it to reset.
 `./serve` pulls from the remote named `github`, not `origin`.
 
@@ -37,6 +37,8 @@ Runtime data is in `data/` (`history.json`, `docs/<id>.html`, `images/` cache). 
   - sanitizes the result: drops `on*` attributes and unsafe links, routes every image through `/img`
 
   It also keeps the topmost anchor marker that survived extraction and turns it into `id="ipad-send-continue"`.
+- Raw markdown files (Chrome's plain-text view of a `.md`) are sent as `{url, title, markdown, line}` instead of html, where `line` is the source line at the top of the window.
+  `src/markdown.js` runs `pandoc -f gfm+sourcepos`, and `extractMarkdown()` puts the anchor before the first element on that line (from `data-pos`), unwraps pandoc's per-word spans, then applies the same sanitization.
 - `src/history.js` is the single source of truth. It holds an ordered list of up to 50 documents and a `current` pointer, plus a `version` counter that increases on every change.
   The state is written atomically (tmp file + rename). Document HTML is stored separately in `data/docs/`.
   - A new send always becomes `current`.

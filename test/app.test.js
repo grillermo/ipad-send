@@ -118,3 +118,16 @@ test("go with a null body returns the unchanged state", async () => {
   assert.equal(response.status, 200);
   assert.equal((await response.json()).current.id, id);
 });
+
+test("a sent markdown file is rendered with pandoc and anchored at the line on screen", async () => {
+  const app = build();
+  const url = "https://example.com/notes/plan.md";
+
+  const sent = await send(app, { url, title: "plan.md", markdown: "# Plan\n\nIntro.\n\n## Later\n\nMore.\n", line: 5 });
+  assert.equal(sent.status, 201);
+  const { id, title } = await sent.json();
+  assert.equal(title, "Plan");
+
+  const html = await (await app.request(`/api/doc/${id}`)).text();
+  assert.match(html, /<span id="ipad-send-continue"><\/span><h2[^>]*>Later/);
+});

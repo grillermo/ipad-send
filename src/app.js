@@ -3,7 +3,8 @@ import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { extract } from "./extract.js";
+import { extract, extractMarkdown } from "./extract.js";
+import { markdownToHtml } from "./markdown.js";
 import { createImageProxy, proxiedImageUrl, PLACEHOLDER_GIF } from "./images.js";
 import { History } from "./history.js";
 
@@ -24,15 +25,28 @@ export function createApp({ dataDir, waitTimeoutMs = 25_000, fetchImpl = fetch }
     "/api/send",
     bodyLimit({ maxSize: MAX_PAGE_BYTES, onError: (c) => c.json({ error: "Page is larger than 20MB" }, 413) }),
     async (c) => {
-      const { url, title, html } = (await c.req.json().catch(() => null)) ?? {};
-      if (typeof html !== "string" || !html) return c.json({ error: "Missing html" }, 400);
+      // The extension sends markdown (plus the line on screen) instead of html for raw .md files.
+      const { url, title, html, markdown, line } = (await c.req.json().catch(() => null)) ?? {};
+      const isMarkdown = typeof markdown === "string";
+      if (!isMarkdown && (typeof html !== "string" || !html)) return c.json({ error: "Missing html" }, 400);
 
       if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return c.json({ error: "url must be http(s)" }, 400);
 
       const startedAt = performance.now();
-      const article = extract(html, url, { imageUrl: (src) => proxiedImageUrl(src, url) });
+      const imageUrl = (src) => proxiedImageUrl(src, url);
+      let article;
+      if (isMarkdown) {
+        try {
+          article = extractMarkdown(await markdownToHtml(markdown), url, { imageUrl, line: Number(line) || 0 });
+        } catch (error) {
+          console.error(`[send] pandoc: ${error.message}`);
+          return c.json({ error: `pandoc failed: ${error.message}` }, 500);
+        }
+      } else {
+        article = extract(html, url, { imageUrl });
+      }
       const doc = history.push({ ...article, url, title: article.title || title || url });
-      console.log(`[send] ${Math.round(performance.now() - startedAt)}ms raw=${doc.raw} ${url}`);
+      console.log(`[send] ${Math.round(performance.now() - startedAt)}ms raw=${doc.raw} markdown=${isMarkdown} ${url}`);
 
       return c.json({ id: doc.id, title: doc.title, raw: doc.raw }, 201);
     },

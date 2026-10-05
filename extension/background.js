@@ -7,7 +7,8 @@ async function serverUrl() {
 }
 
 // Runs inside the page, so it must be self-contained.
-// Puts numbered empty spans before the text visible in the window (0 = topmost) so the iPad can open
+// For raw markdown files it returns the source instead (see below).
+// Otherwise puts numbered empty spans before the text visible in the window (0 = topmost) so the iPad can open
 // at the same spot; the server keeps the topmost one that is part of the article (see src/extract.js).
 function grabPage() {
   const MARKER = "data-ipad-send-anchor";
@@ -15,6 +16,23 @@ function grabPage() {
   // Skip the top 10% of the window: sticky site headers usually cover it.
   const top = window.innerHeight * 0.1;
   const markers = [];
+
+  // A raw markdown file shows as plain text in one <pre>. Send the source instead of the page, along with
+  // the 1-based line at the top of the window, so the server can render it with pandoc and anchor there.
+  const pre = document.querySelector("body > pre");
+  const markdownType = /^text\/(x-)?markdown$/.test(document.contentType) ||
+    (document.contentType === "text/plain" && /\.(md|markdown|mdown|mkd)$/i.test(location.pathname));
+  if (pre && markdownType) {
+    let line = 0;
+    const hit = window.scrollY > 0 && document.caretRangeFromPoint(pre.getBoundingClientRect().left + 1, 2);
+    if (hit && pre.contains(hit.startContainer)) {
+      const before = document.createRange();
+      before.setStart(pre, 0);
+      before.setEnd(hit.startContainer, hit.startOffset);
+      line = before.toString().split("\n").length;
+    }
+    return { url: location.href, title: document.title, markdown: pre.textContent, line };
+  }
 
   const pinned = new Map();
   const isPinned = (el) => {
