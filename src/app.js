@@ -5,13 +5,13 @@ import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { extract } from "./extract.js";
 import { createImageProxy, proxiedImageUrl, PLACEHOLDER_GIF } from "./images.js";
-import { Queue } from "./queue.js";
+import { History } from "./history.js";
 
 const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
 const MAX_PAGE_BYTES = 20 * 1024 * 1024;
 
 export function createApp({ dataDir, waitTimeoutMs = 25_000, fetchImpl = fetch }) {
-  const queue = new Queue(dataDir);
+  const history = new History(dataDir);
   const getImage = createImageProxy({ cacheDir: path.join(dataDir, "images"), fetchImpl });
   const app = new Hono();
 
@@ -31,28 +31,28 @@ export function createApp({ dataDir, waitTimeoutMs = 25_000, fetchImpl = fetch }
 
       const startedAt = performance.now();
       const article = extract(html, url, { imageUrl: (src) => proxiedImageUrl(src, url) });
-      const doc = queue.push({ ...article, url, title: article.title || title || url });
+      const doc = history.push({ ...article, url, title: article.title || title || url });
       console.log(`[send] ${Math.round(performance.now() - startedAt)}ms raw=${doc.raw} ${url}`);
 
-      return c.json({ id: doc.id, title: doc.title, raw: doc.raw, queued: queue.snapshot().queued }, 201);
+      return c.json({ id: doc.id, title: doc.title, raw: doc.raw }, 201);
     },
   );
 
-  app.get("/api/state", (c) => c.json(queue.snapshot()));
+  app.get("/api/state", (c) => c.json(history.snapshot()));
 
   app.get("/api/doc/:id", (c) => {
-    const html = queue.content(c.req.param("id"));
+    const html = history.content(c.req.param("id"));
     return html === null ? c.json({ error: "Not found" }, 404) : c.html(html);
   });
 
-  app.post("/api/advance", async (c) => {
-    const { from } = (await c.req.json().catch(() => null)) ?? {};
-    queue.advance(from);
-    return c.json(queue.snapshot());
+  app.post("/api/go", async (c) => {
+    const { from, step } = (await c.req.json().catch(() => null)) ?? {};
+    history.go(from, step);
+    return c.json(history.snapshot());
   });
 
   app.get("/api/wait", async (c) => {
-    const version = await queue.waitForChange(Number(c.req.query("since")), waitTimeoutMs);
+    const version = await history.waitForChange(Number(c.req.query("since")), waitTimeoutMs);
     return c.json({ version });
   });
 
@@ -72,5 +72,5 @@ export function createApp({ dataDir, waitTimeoutMs = 25_000, fetchImpl = fetch }
 
   app.use("/*", serveStatic({ root: PUBLIC_DIR }));
 
-  return { app, queue };
+  return { app, history };
 }

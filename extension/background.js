@@ -7,8 +7,23 @@ async function serverUrl() {
 }
 
 // Runs inside the page, so it must be self-contained.
+// Marks the topmost visible text block so the iPad opens at the same spot (see src/extract.js).
 function grabPage() {
-  return { url: location.href, title: document.title, html: document.documentElement.outerHTML };
+  const MARKER = "data-ipad-send-anchor";
+  const BLOCKS = "p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, dd, dt, figcaption";
+  // Skip the top 10% of the window: sticky site headers usually cover it.
+  const top = window.innerHeight * 0.1;
+  const anchor = window.scrollY > 0 && [...document.querySelectorAll(BLOCKS)].find((el) => {
+    if (el.querySelector(BLOCKS) || !el.textContent.trim()) return false; // innermost blocks with text only
+    const rect = el.getBoundingClientRect();
+    return rect.height > 0 && rect.bottom > top && rect.top < window.innerHeight;
+  });
+  if (anchor) anchor.setAttribute(MARKER, "");
+  try {
+    return { url: location.href, title: document.title, html: document.documentElement.outerHTML };
+  } finally {
+    if (anchor) anchor.removeAttribute(MARKER);
+  }
 }
 
 async function flash(tabId, text, color) {

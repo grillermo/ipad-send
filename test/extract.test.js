@@ -114,3 +114,27 @@ test("applies the link allow-list to image map areas too", () => {
   assert.doesNotMatch(content, /javascript:/i);
   assert.match(content, /href="https:\/\/example\.org\/ok"/);
 });
+
+const SUN = "<p>The sun matters too.";
+const marked = (replacement) => fixture.replace(SUN, replacement);
+
+test("turns the extension's reading-position marker into an anchor the iPad can scroll to", () => {
+  const { content } = extract(marked('<p data-ipad-send-anchor="">The sun matters too.'), PAGE_URL, { imageUrl });
+
+  assert.match(content, /<p id="ipad-send-continue">The sun matters too\./);
+  assert.doesNotMatch(content, /data-ipad-send-anchor/);
+});
+
+test("finds the marked block by its text when Readability rebuilds the element and drops the marker", () => {
+  const html = marked('<div data-ipad-send-anchor="">The sun matters too.').replace("neap tides.</p>", "neap tides.</div>");
+
+  const { content } = extract(html, PAGE_URL, { imageUrl });
+
+  assert.match(content, /<p id="ipad-send-continue">The sun matters too\./);
+});
+
+test("adds no anchor without a marker, and strips the page's own use of the anchor id", () => {
+  const { content } = extract(marked('<p id="ipad-send-continue">The sun matters too.'), PAGE_URL, { imageUrl });
+
+  assert.doesNotMatch(content, /ipad-send-continue/);
+});

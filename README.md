@@ -18,8 +18,9 @@ npm install
 
 ## Use
 
-Hotkey → the page shows on the iPad. If you're already reading, it's queued: tap
-"N queued ›" for the next one, or "Done" to clear the screen.
+Hotkey → the page shows on the iPad right away, replacing whatever was on screen, and opens
+scrolled to the text that was at the top of your Chrome window.
+"‹ Previous" goes back to older documents; "Next ›" appears while you're on one.
 
 ## Dev
 
@@ -31,7 +32,7 @@ tmux kill-session -t ipad-send   # stop ./serve
 tail -f log/server.log
 ```
 
-Data lives in `data/` (queue.json, docs/, images/); delete it to reset.
+Data lives in `data/` (history.json, docs/, images/); delete it to reset.
 
 ## Limits
 

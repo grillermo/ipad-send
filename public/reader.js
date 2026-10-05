@@ -23,6 +23,9 @@
   var docRetryDelay = DOC_RETRY_MIN_MS;
   var stateGeneration = 0;
   var DOC_WATCHDOG_MS = 20000;
+  // Placed by the server on the block that was at the top of Chrome's window when sent.
+  var ANCHOR_ID = 'ipad-send-continue';
+  var ANCHOR_MARGIN_PX = 16;
 
   function $(id) { return document.getElementById(id); }
 
@@ -96,9 +99,8 @@
 
   function render(state) {
     var doc = state.current;
-    $('next').innerHTML = state.queued + ' queued &rsaquo;';
-    show('next', state.queued > 0);
-    show('done', doc && state.queued === 0);
+    show('previous', state.hasPrevious);
+    show('next', state.hasNext);
 
     var currentId = doc ? doc.id : null;
     if (currentId === shownId) return;
@@ -156,8 +158,38 @@
         show('original', true);
       }
       document.title = doc.title || 'iPad Send';
-      window.scrollTo(0, parseInt(getPref('pos:' + doc.id, '0'), 10));
+      var saved = getPref('pos:' + doc.id, null);
+      if (saved === null) followAnchor(doc.id);
+      else window.scrollTo(0, parseInt(saved, 10));
     }, retry);
+  }
+
+  function pageTop(el) {
+    var top = 0;
+    for (; el; el = el.offsetParent) top += el.offsetTop;
+    return top;
+  }
+
+  // Images above the anchor have no size until they load and push it down, so jump again after each
+  // one, until the reader scrolls by hand.
+  function followAnchor(id) {
+    var anchor = $(ANCHOR_ID);
+    var images = $('article').getElementsByTagName('img');
+    var landedAt = null;
+    var i;
+
+    function jump() {
+      if (shownId !== id) return;
+      if (landedAt !== null && window.pageYOffset !== landedAt) return;
+      window.scrollTo(0, anchor ? Math.max(0, pageTop(anchor) - ANCHOR_MARGIN_PX) : 0);
+      landedAt = window.pageYOffset; // the page may still be too short to reach the anchor
+    }
+
+    jump();
+    if (!anchor) return;
+    for (i = 0; i < images.length; i++) {
+      if (!images[i].complete) images[i].onload = images[i].onerror = jump;
+    }
   }
 
   function refreshState() {
@@ -219,9 +251,9 @@
     }
   }
 
-  function advance() {
+  function go(step) {
     if (!shownId) return;
-    request('POST', '/api/advance', { from: shownId }, function (text) {
+    request('POST', '/api/go', { from: shownId, step: step }, function (text) {
       var state;
       try { state = JSON.parse(text); } catch (e) { refreshState(); return; }
       version = state.version;
@@ -237,8 +269,8 @@
   onTap('smaller', function () { changeFontSize(-2); });
   onTap('bigger', function () { changeFontSize(2); });
   onTap('theme', cycleTheme);
-  onTap('next', advance);
-  onTap('done', advance);
+  onTap('previous', function () { go(-1); });
+  onTap('next', function () { go(1); });
 
   window.addEventListener('scroll', function () {
     var id = shownId;

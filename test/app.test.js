@@ -22,6 +22,8 @@ function send(app, body = { url: "https://example.com/blog/tides", title: "Tab t
 }
 
 const json = async (response) => (await response).json();
+const post = (app, path, body) =>
+  app.request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body });
 
 test("a sent page becomes the current document with readable, proxied content", async () => {
   const app = build();
@@ -64,21 +66,19 @@ test("a waiting iPad is woken up by a send", async () => {
   assert.equal((await waiting).version, version + 1);
 });
 
-test("advance moves to the queued document", async () => {
+test("previous and next move through sent documents", async () => {
   const app = build();
   const first = await json(send(app));
   const second = await json(send(app));
+  const go = (from, step) => json(post(app, "/api/go", JSON.stringify({ from, step })));
 
-  const state = await json(
-    app.request("/api/advance", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ from: first.id }),
-    }),
-  );
+  const back = await go(second.id, -1);
+  assert.equal(back.current.id, first.id);
+  assert.deepEqual([back.hasPrevious, back.hasNext], [false, true]);
 
-  assert.equal(state.current.id, second.id);
-  assert.equal(state.queued, 0);
+  const forward = await go(first.id, 1);
+  assert.equal(forward.current.id, second.id);
+  assert.deepEqual([forward.hasPrevious, forward.hasNext], [true, false]);
 });
 
 test("api responses are never cached, because old iOS Safari caches XHRs", async () => {
@@ -101,9 +101,6 @@ test("the reader page is served at /", async () => {
   assert.match(await response.text(), /reader\.js/);
 });
 
-const post = (app, path, body) =>
-  app.request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body });
-
 test("send rejects malformed json, an empty body, null and non-string html with 400", async () => {
   const app = build();
 
@@ -112,11 +109,11 @@ test("send rejects malformed json, an empty body, null and non-string html with 
   }
 });
 
-test("advance with a null body returns the unchanged state", async () => {
+test("go with a null body returns the unchanged state", async () => {
   const app = build();
   const { id } = await json(send(app));
 
-  const response = await post(app, "/api/advance", "null");
+  const response = await post(app, "/api/go", "null");
 
   assert.equal(response.status, 200);
   assert.equal((await response.json()).current.id, id);
