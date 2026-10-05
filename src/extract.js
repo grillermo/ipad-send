@@ -9,10 +9,10 @@ const SAFE_DATA_IMAGE = /^data:image\/(png|jpe?g|gif|webp)[;,]/i;
 const LAZY_SRC_ATTRIBUTES = ["data-src", "data-original", "data-lazy-src", "data-url"];
 const MAX_SRCSET_WIDTH = 2048;
 const MIN_ARTICLE_TEXT = 140;
-// Set by the extension on the topmost block visible in Chrome; becomes ANCHOR_ID in the output.
+// The extension puts numbered empty spans before the text visible in Chrome, 0 = topmost.
+// The lowest-numbered one that survives extraction becomes ANCHOR_ID, which the iPad scrolls to.
 const ANCHOR_MARKER = "data-ipad-send-anchor";
 const ANCHOR_ID = "ipad-send-continue";
-const BLOCK_SELECTOR = "p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, dd, dt, figcaption";
 
 export function extract(html, pageUrl, { imageUrl }) {
   // Silent VirtualConsole: JSDOM otherwise logs every CSS parse error to stderr.
@@ -20,7 +20,6 @@ export function extract(html, pageUrl, { imageUrl }) {
   document.querySelectorAll(STRIP_SELECTOR).forEach((el) => el.remove());
   resolveLazyImages(document);
   absolutizeUrls(document);
-  const anchorText = normalizedText(document.querySelector(`[${ANCHOR_MARKER}]`));
 
   // Readability mutates the document it reads, so give it a copy and keep the original for the fallback.
   const article = new Readability(document.cloneNode(true)).parse();
@@ -30,7 +29,7 @@ export function extract(html, pageUrl, { imageUrl }) {
   return {
     title: (!raw && article.title) || document.title || null,
     byline: raw ? null : article.byline || null,
-    content: sanitize(document, body, imageUrl, anchorText),
+    content: sanitize(document, body, imageUrl),
     raw,
   };
 }
@@ -75,10 +74,10 @@ function absolutizeUrls(document) {
   for (const img of document.querySelectorAll("img[src]")) img.setAttribute("src", img.src);
 }
 
-function sanitize(document, html, imageUrl, anchorText) {
+function sanitize(document, html, imageUrl) {
   const container = document.createElement("div");
   container.innerHTML = html;
-  placeAnchor(container, anchorText);
+  placeAnchor(container);
 
   for (const el of container.querySelectorAll("*")) {
     for (const { name } of [...el.attributes]) {
@@ -99,18 +98,19 @@ function sanitize(document, html, imageUrl, anchorText) {
   return container.innerHTML;
 }
 
-// Readability rebuilds some elements (div → p) without their attributes, so fall back to matching the text.
-function placeAnchor(container, anchorText) {
+function placeAnchor(container) {
   container.querySelectorAll(`#${ANCHOR_ID}`).forEach((el) => el.removeAttribute("id"));
-  const anchor =
-    container.querySelector(`[${ANCHOR_MARKER}]`) ??
-    (anchorText && [...container.querySelectorAll(BLOCK_SELECTOR)].find((el) => normalizedText(el) === anchorText));
-  container.querySelectorAll(`[${ANCHOR_MARKER}]`).forEach((el) => el.removeAttribute(ANCHOR_MARKER));
-  anchor?.setAttribute("id", ANCHOR_ID);
-}
-
-function normalizedText(el) {
-  return el?.textContent.replace(/\s+/g, " ").trim() || null;
+  const markers = [...container.querySelectorAll(`span[${ANCHOR_MARKER}]`)];
+  const order = (el) => Number(el.getAttribute(ANCHOR_MARKER)) || 0;
+  const topmost = markers.reduce((best, el) => (!best || order(el) < order(best) ? el : best), null);
+  for (const el of markers) {
+    if (el === topmost) {
+      el.removeAttribute(ANCHOR_MARKER);
+      el.setAttribute("id", ANCHOR_ID);
+    } else {
+      el.remove();
+    }
+  }
 }
 
 function isSafeLink(href) {

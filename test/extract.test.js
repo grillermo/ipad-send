@@ -115,26 +115,35 @@ test("applies the link allow-list to image map areas too", () => {
   assert.match(content, /href="https:\/\/example\.org\/ok"/);
 });
 
-const SUN = "<p>The sun matters too.";
-const marked = (replacement) => fixture.replace(SUN, replacement);
+const marker = (n) => `<span data-ipad-send-anchor="${n}"></span>`;
 
-test("turns the extension's reading-position marker into an anchor the iPad can scroll to", () => {
-  const { content } = extract(marked('<p data-ipad-send-anchor="">The sun matters too.'), PAGE_URL, { imageUrl });
-
-  assert.match(content, /<p id="ipad-send-continue">The sun matters too\./);
-  assert.doesNotMatch(content, /data-ipad-send-anchor/);
-});
-
-test("finds the marked block by its text when Readability rebuilds the element and drops the marker", () => {
-  const html = marked('<div data-ipad-send-anchor="">The sun matters too.').replace("neap tides.</p>", "neap tides.</div>");
+test("anchors the topmost marked text that survives extraction, so the iPad opens where Chrome was", () => {
+  const html = fixture
+    .replace("<li>Site navigation", `<li>${marker(0)}Site navigation`) // dropped with the nav
+    .replace("<p>The sun matters too.", `<p>${marker(1)}The sun matters too.`)
+    .replace("<p>Local geography", `<p>${marker(2)}Local geography`);
 
   const { content } = extract(html, PAGE_URL, { imageUrl });
 
-  assert.match(content, /<p id="ipad-send-continue">The sun matters too\./);
+  assert.match(content, /<p><span id="ipad-send-continue"><\/span>The sun matters too\./);
+  assert.doesNotMatch(content, /data-ipad-send-anchor/);
+  assert.match(content, /<p>Local geography/, "unused markers are removed");
+});
+
+test("keeps the anchor when Readability rebuilds the marked element", () => {
+  const html = fixture
+    .replace("<p>The sun matters too.", `<div>${marker(0)}The sun matters too.`)
+    .replace("neap tides.</p>", "neap tides.</div>");
+
+  const { content } = extract(html, PAGE_URL, { imageUrl });
+
+  assert.match(content, /<span id="ipad-send-continue"><\/span>The sun matters too\./);
 });
 
 test("adds no anchor without a marker, and strips the page's own use of the anchor id", () => {
-  const { content } = extract(marked('<p id="ipad-send-continue">The sun matters too.'), PAGE_URL, { imageUrl });
+  const html = fixture.replace("<p>The sun matters too.", '<p id="ipad-send-continue">The sun matters too.');
+
+  const { content } = extract(html, PAGE_URL, { imageUrl });
 
   assert.doesNotMatch(content, /ipad-send-continue/);
 });

@@ -7,22 +7,50 @@ async function serverUrl() {
 }
 
 // Runs inside the page, so it must be self-contained.
-// Marks the topmost visible text block so the iPad opens at the same spot (see src/extract.js).
+// Puts numbered empty spans before the text visible in the window (0 = topmost) so the iPad can open
+// at the same spot; the server keeps the topmost one that is part of the article (see src/extract.js).
 function grabPage() {
   const MARKER = "data-ipad-send-anchor";
-  const BLOCKS = "p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, dd, dt, figcaption";
+  const MAX_MARKERS = 30;
   // Skip the top 10% of the window: sticky site headers usually cover it.
   const top = window.innerHeight * 0.1;
-  const anchor = window.scrollY > 0 && [...document.querySelectorAll(BLOCKS)].find((el) => {
-    if (el.querySelector(BLOCKS) || !el.textContent.trim()) return false; // innermost blocks with text only
-    const rect = el.getBoundingClientRect();
-    return rect.height > 0 && rect.bottom > top && rect.top < window.innerHeight;
-  });
-  if (anchor) anchor.setAttribute(MARKER, "");
+  const markers = [];
+
+  const pinned = new Map();
+  const isPinned = (el) => {
+    if (!el) return false;
+    if (!pinned.has(el)) {
+      const { position } = getComputedStyle(el);
+      pinned.set(el, position === "fixed" || position === "sticky" || isPinned(el.parentElement));
+    }
+    return pinned.get(el);
+  };
+
+  if (window.scrollY > 0) {
+    const visible = [];
+    const range = document.createRange();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!node.data.trim() || /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/.test(node.parentElement.tagName)) continue;
+      range.selectNodeContents(node);
+      const rect = range.getBoundingClientRect();
+      if (rect.height === 0 || rect.bottom <= top || rect.top >= window.innerHeight) continue;
+      if (isPinned(node.parentElement)) continue; // site headers, sidebars, cookie bars
+      visible.push({ node, top: rect.top, left: rect.left });
+    }
+    visible.sort((a, b) => a.top - b.top || a.left - b.left);
+    for (const { node } of visible.slice(0, MAX_MARKERS)) {
+      const marker = document.createElement("span");
+      marker.setAttribute(MARKER, String(markers.length));
+      node.parentNode.insertBefore(marker, node);
+      markers.push(marker);
+    }
+  }
+
   try {
     return { url: location.href, title: document.title, html: document.documentElement.outerHTML };
   } finally {
-    if (anchor) anchor.removeAttribute(MARKER);
+    markers.forEach((marker) => marker.remove());
   }
 }
 
