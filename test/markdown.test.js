@@ -51,3 +51,34 @@ test("falls back to the file name when there is no h1", async () => {
 
   assert.equal(result.title, "Strategy.md");
 });
+
+const renderText = async (markdown) =>
+  (extractMarkdown(await markdownToHtml(markdown), PAGE_URL, { imageUrl, line: 0 })).content;
+
+test("wraps markdown in .md and drops the leading h1 the reader already shows as the title", async () => {
+  const content = await renderText("# Title\n\nBody.\n\n# Part two\n");
+
+  assert.match(content, /^<div class="md">[\s\S]*<\/div>$/);
+  assert.doesNotMatch(content, />Title</);
+  assert.match(content, /<h1[^>]*>Part\stwo<\/h1>/);
+});
+
+test("turns GitHub alerts and **Note:** paragraphs into styled callouts", async () => {
+  const content = await renderText(
+    "> [!TIP]\n> Native.\n\n**Warning:** loose.\n\n> **Note**: quoted\n> more\n\n**Bold** but no colon.\n",
+  );
+
+  assert.match(content, /<div class="tip callout">\s*<div class="title">\s*<p>Tip<\/p>/);
+  assert.match(content, /<div class="callout warning"><div class="title"><p>Warning<\/p><\/div><p>\s*loose\.<\/p><\/div>/);
+  assert.match(content, /<div class="callout note"><div class="title"><p>Note<\/p><\/div>\s*<p>\s*quoted\s+more<\/p>/);
+  assert.doesNotMatch(content, /<blockquote/);
+  assert.match(content, /<p><strong>Bold<\/strong> but no colon\.<\/p>/);
+});
+
+test("draws task list checkboxes with css instead of glyphs iOS 5 lacks", async () => {
+  const content = await renderText("- [ ] open\n- [x] closed\n");
+
+  assert.match(content, /<li class="task-item"><span class="task"><\/span>open<\/li>/);
+  assert.match(content, /<li class="task-item"><span class="task done"><\/span>closed<\/li>/);
+  assert.doesNotMatch(content, /[☐☒]/);
+});

@@ -23,3 +23,84 @@ html.dark a { color: #8ab4f8; }
 #article .meta { color: #888; font-size: 0.8em; }
 #article .raw { background: #c90; color: #fff; padding: 2px 6px; border-radius: 3px; }
 #article .empty { color: #888; text-align: center; margin-top: 30%; }
+
+/* Markdown documents (wrapped in .md by src/extract.js). Safari 5.1: no flexbox, variables or calc;
+   tints use rgba so they sit on every theme, and accents are set per theme below. */
+#article .md h1, #article .md h2, #article .md h3, #article .md h4, #article .md h5, #article .md h6,
+#article .md th, #article .md .callout .title p {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; line-height: 1.25; }
+#article .md h1 { font-size: 1.6em; margin: 1.6em 0 0.6em; padding-bottom: 0.2em; border-bottom: 3px solid; }
+#article .md h2 { font-size: 1.35em; margin: 2.2em 0 0.8em; padding: 0.35em 0 0.35em 0.6em;
+  border-left: 6px solid; background: rgba(128, 128, 128, 0.12); }
+#article .md h3 { font-size: 1.12em; margin: 1.8em 0 0.5em; padding-bottom: 0.15em; border-bottom: 1px dotted; }
+#article .md h4, #article .md h5, #article .md h6 { font-size: 0.8em; margin: 1.6em 0 0.4em;
+  text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
+#article .md p, #article .md ul, #article .md ol, #article .md pre, #article .md table { margin: 0 0 1em; }
+#article .md li { margin-bottom: 0.35em; }
+#article .md li ul, #article .md li ol { margin: 0.35em 0 0; padding-left: 1.2em; border-left: 2px dotted rgba(128, 128, 128, 0.4); }
+
+#article .md code { font-family: "Courier New", Courier, monospace; font-size: 0.9em; padding: 0.1em 0.3em;
+  border-radius: 3px; background: rgba(128, 128, 128, 0.18); }
+#article .md pre { padding: 0.8em 1em; border-radius: 4px; border-left: 4px solid rgba(128, 128, 128, 0.5);
+  background: rgba(128, 128, 128, 0.12); font-size: 0.8em; line-height: 1.45; }
+#article .md pre code { padding: 0; background: none; font-size: 1em; }
+
+#article .md blockquote { margin: 0 0 1em; padding: 0.6em 1em; font-style: italic;
+  border-left: 4px solid rgba(128, 128, 128, 0.5); background: rgba(128, 128, 128, 0.08); }
+#article .md blockquote p:last-child, #article .md .callout p:last-child { margin-bottom: 0; }
+
+#article .md hr { height: 0; margin: 2.2em 25%; border: 0; border-top: 3px double rgba(128, 128, 128, 0.5); }
+
+#article .md table { border-collapse: collapse; font-size: 0.85em; }
+#article .md th, #article .md td { padding: 0.4em 0.7em; border: 1px solid rgba(128, 128, 128, 0.35); text-align: left; vertical-align: top; }
+#article .md th { background: rgba(128, 128, 128, 0.18); }
+#article .md tbody tr:nth-child(even) td { background: rgba(128, 128, 128, 0.07); }
+
+/* Callouts: GitHub alerts and "**Note:** ..." paragraphs. */
+#article .md .callout { margin: 0 0 1em; padding: 0.7em 1em; border-left: 6px solid; border-radius: 0 4px 4px 0; }
+#article .md .callout .title p { margin: 0 0 0.3em; font-size: 0.7em; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; }
+#article .md .callout.note { border-color: #3a7bd5; background: rgba(58, 123, 213, 0.12); }
+#article .md .callout.tip { border-color: #2e9e5b; background: rgba(46, 158, 91, 0.12); }
+#article .md .callout.important { border-color: #8a5cd0; background: rgba(138, 92, 208, 0.12); }
+#article .md .callout.warning { border-color: #d98a00; background: rgba(217, 138, 0, 0.14); }
+#article .md .callout.caution { border-color: #d0453a; background: rgba(208, 69, 58, 0.12); }
+#article .md .callout.note .title p { color: #2a64b5; }
+#article .md .callout.tip .title p { color: #23804a; }
+#article .md .callout.important .title p { color: #6e43b3; }
+#article .md .callout.warning .title p { color: #a86a00; }
+#article .md .callout.caution .title p { color: #b3342a; }
+
+/* Task lists: pandoc's checkbox glyphs are not in iOS 5 fonts, so draw the boxes. */
+#article .md .task-item { list-style: none; margin-left: -1.2em; }
+#article .md .task { display: inline-block; width: 0.75em; height: 0.75em; margin-right: 0.45em; vertical-align: -0.05em;
+  border: 2px solid rgba(128, 128, 128, 0.7); border-radius: 3px; }
+#article .md .task.done { border-color: #2e9e5b; background: #2e9e5b; }
+/* A rotated border corner as the tick, so it needs no glyph. */
+#article .md .task.done:before { content: ""; display: block; width: 0.2em; height: 0.42em; margin: 0.04em auto 0;
+  border: solid #fff; border-width: 0 0.12em 0.12em 0; -webkit-transform: rotate(45deg); transform: rotate(45deg); }
+#article .md .task-item:not(:first-child) { margin-top: 0.2em; }
+
+/* Per-theme accents: headings, rules and emphasis. */
+html.light #article .md h1, html.light #article .md h2 { border-color: #2563a8; }
+html.light #article .md h2, html.light #article .md h1 { color: #14325a; }
+html.light #article .md h3 { color: #1f6f6a; border-color: rgba(31, 111, 106, 0.5); }
+html.light #article .md strong { color: #000; }
+
+html.sepia #article .md h1, html.sepia #article .md h2 { border-color: #9a5a1c; }
+html.sepia #article .md h2, html.sepia #article .md h1 { color: #5a3410; }
+html.sepia #article .md h3 { color: #6b5420; border-color: rgba(107, 84, 32, 0.5); }
+html.sepia #article .md strong { color: #241a0e; }
+
+html.dark #article .md h1, html.dark #article .md h2 { border-color: #f0b35a; }
+html.dark #article .md h2, html.dark #article .md h1 { color: #fff; }
+html.dark #article .md h3 { color: #8fd3c7; border-color: rgba(143, 211, 199, 0.5); }
+html.dark #article .md h4, html.dark #article .md h5, html.dark #article .md h6 { color: #c8c8c8; }
+html.dark #article .md strong { color: #fff; }
+html.dark #article .md em { color: #e8d6b0; }
+html.dark #article .md code { color: #f2c48d; }
+html.dark #article .md pre code { color: #ddd; }
+html.dark #article .md .callout.note .title p { color: #8ab4f8; }
+html.dark #article .md .callout.tip .title p { color: #7fd09b; }
+html.dark #article .md .callout.important .title p { color: #c3a3f5; }
+html.dark #article .md .callout.warning .title p { color: #f0b35a; }
+html.dark #article .md .callout.caution .title p { color: #f08a7e; }

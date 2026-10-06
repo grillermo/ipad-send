@@ -13,6 +13,12 @@ const MIN_ARTICLE_TEXT = 140;
 // The lowest-numbered one that survives extraction becomes ANCHOR_ID, which the iPad scrolls to.
 const ANCHOR_MARKER = "data-ipad-send-anchor";
 const ANCHOR_ID = "ipad-send-continue";
+const TEXT_NODE = 3;
+const CALLOUT_KINDS = ["note", "tip", "important", "warning", "caution"];
+const CALLOUT_LABELS = {
+  note: "note", info: "note", tip: "tip", hint: "tip", important: "important",
+  warning: "warning", attention: "warning", caution: "caution", danger: "caution",
+};
 
 export function extract(html, pageUrl, { imageUrl }) {
   const document = load(html, pageUrl);
@@ -49,11 +55,19 @@ export function extractMarkdown(html, pageUrl, { imageUrl, line }) {
   // Pandoc wraps every word in a span for sourcepos; unwrap them so the iPad doesn't carry that DOM.
   document.body.querySelectorAll("span[data-wrapper]").forEach((span) => span.replaceWith(...span.childNodes));
   positioned.forEach((el) => el.removeAttribute("data-pos"));
+  markCallouts(document);
+  markTasks(document);
+
+  const title = document.querySelector("h1")?.textContent.trim() || fileName(pageUrl);
+  // The reader prints the title as its own h1, so drop a leading one instead of showing it twice.
+  const lead = document.body.firstElementChild;
+  if (lead?.tagName === "H1" && lead.textContent.trim() === title) lead.remove();
 
   return {
-    title: document.querySelector("h1")?.textContent.trim() || fileName(pageUrl),
+    title,
     byline: null,
-    content: sanitize(document, document.body.innerHTML, imageUrl),
+    // .md scopes the markdown styles in public/reader.css so they never touch extracted web pages.
+    content: `<div class="md">${sanitize(document, document.body.innerHTML, imageUrl)}</div>`,
     raw: false,
   };
 }
@@ -79,6 +93,52 @@ function load(html, pageUrl) {
   resolveLazyImages(document);
   absolutizeUrls(document);
   return document;
+}
+
+// GitHub alerts (> [!NOTE]) come from pandoc as div.note/.tip/... with a div.title. "**Note:** ..." paragraphs,
+// alone or opening a blockquote, are the older convention; rebuild them into the same shape so they look alike.
+function markCallouts(document) {
+  for (const title of document.querySelectorAll(CALLOUT_KINDS.map((kind) => `div.${kind} > div.title`).join())) {
+    title.parentElement.classList.add("callout");
+  }
+  for (const p of document.querySelectorAll("p")) {
+    const label = [...p.childNodes].find((node) => !isBlank(node) && !node.hasAttribute?.(ANCHOR_MARKER));
+    if (label?.nodeName !== "STRONG" && label?.nodeName !== "B") continue;
+    const match = /^(\w+)\s*(:?)$/.exec(label.textContent.trim());
+    const kind = match && CALLOUT_LABELS[match[1].toLowerCase()];
+    const after = label.nextSibling;
+    const colonAfter = after?.nodeType === TEXT_NODE && /^\s*:/.test(after.data);
+    if (!kind || !(match[2] || colonAfter)) continue;
+
+    if (colonAfter) after.data = after.data.replace(/^\s*:/, "");
+    label.remove();
+    const quote = p.parentElement.tagName === "BLOCKQUOTE" && p.parentElement.firstElementChild === p ? p.parentElement : null;
+    const box = document.createElement("div");
+    box.className = `callout ${kind}`;
+    box.innerHTML = '<div class="title"><p></p></div>';
+    box.querySelector("p").textContent = match[1];
+    (quote ?? p).replaceWith(box);
+    box.append(...(quote ? quote.childNodes : [p]));
+    if (!p.textContent.trim() && !p.querySelector("img")) p.replaceWith(...p.childNodes);
+  }
+}
+
+// Pandoc writes task list checkboxes as ☐/☒, which iOS 5 fonts may lack; reader.css draws them instead.
+function markTasks(document) {
+  for (const li of document.querySelectorAll("li")) {
+    const text = [...li.childNodes].find((node) => !isBlank(node));
+    const match = text?.nodeType === TEXT_NODE && /^\s*([☐☒])\s*/.exec(text.data);
+    if (!match) continue;
+    text.data = text.data.slice(match[0].length);
+    const box = document.createElement("span");
+    box.className = match[1] === "☒" ? "task done" : "task";
+    li.prepend(box);
+    li.classList.add("task-item");
+  }
+}
+
+function isBlank(node) {
+  return node.nodeType === TEXT_NODE && !node.data.trim();
 }
 
 function startLine(el) {
