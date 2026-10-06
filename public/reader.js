@@ -31,7 +31,7 @@
   var SCROLL_INTERVAL_MS = 70;
   var SCROLL_MIN_MS = 20;
   var SCROLL_MAX_MS = 250;
-  var SCROLL_STEP = 1.25;
+  var SCROLL_STEP = 1.6;
   var autoscrollTimer = null;
   var touching = false;
 
@@ -318,6 +318,18 @@
   onTap('autoscroll', function () { if (autoscrollTimer) stopAutoscroll(); else startAutoscroll(); });
   onTap('slower', function () { changeScrollSpeed(false); });
   onTap('faster', function () { changeScrollSpeed(true); });
+
+  // Light the speed buttons on touchstart: click arrives ~300ms later on iOS, and :active is unreliable.
+  function pressFeedback(id) {
+    var el = $(id);
+    function release() { setTimeout(function () { el.className = ''; }, 150); }
+    el.addEventListener('touchstart', function () { el.className = 'pressed'; }, false);
+    el.addEventListener('touchend', release, false);
+    el.addEventListener('touchcancel', release, false);
+  }
+
+  pressFeedback('slower');
+  pressFeedback('faster');
 
   document.addEventListener('touchstart', function () { touching = true; }, false);
   document.addEventListener('touchend', function () { touching = false; }, false);

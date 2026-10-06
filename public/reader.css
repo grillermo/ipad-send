@@ -13,7 +13,9 @@ html.dark a { color: #8ab4f8; }
 #next { right: 8px; }
 #original { display: none; }
 #autoscroll.on { background: #555; border-radius: 4px; line-height: 32px; margin: 6px 0; }
-#slower, #faster { display: none; font-weight: bold; }
+#toolbar #slower, #toolbar #faster { display: none; font-weight: bold; font-size: 26px; min-width: 44px; line-height: 36px;
+  margin: 4px 2px; padding: 0; background: #3a3a3a; border-radius: 6px; -webkit-tap-highlight-color: transparent; }
+#toolbar #slower.pressed, #toolbar #faster.pressed { background: #888; }
 #status { display: inline-block; width: 10px; height: 10px; border-radius: 5px; background: #4c4; margin-left: 8px; vertical-align: middle; }
 #status.offline { background: #888; }
 
