@@ -101,6 +101,20 @@ test("the reader page is served at /", async () => {
   assert.match(await response.text(), /reader\.js/);
 });
 
+test("reader files must be revalidated, so the iPad never runs a stale reader.js", async () => {
+  const app = build();
+  for (const path of ["/", "/reader.js", "/reader.css"]) {
+    assert.equal((await app.request(path)).headers.get("Cache-Control"), "no-cache", path);
+  }
+});
+
+test("the reader page asks for its script and styles under a url that changes with the file", async () => {
+  const html = await (await build().request("/")).text();
+
+  assert.match(html, /src="\/reader\.js\?v=\d+"/);
+  assert.match(html, /href="\/reader\.css\?v=\d+"/);
+});
+
 test("send rejects malformed json, an empty body, null and non-string html with 400", async () => {
   const app = build();
 

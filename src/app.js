@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
@@ -84,6 +85,22 @@ export function createApp({ dataDir, waitTimeoutMs = 25_000, fetchImpl = fetch }
     }
   });
 
+  // Without this iOS 5 Safari keeps running a stale reader.js after a deploy. no-cache still lets it
+  // revalidate with Last-Modified, so an unchanged file costs a 304.
+  app.use("/*", async (c, next) => {
+    await next();
+    if (!c.res.headers.has("Cache-Control")) c.res.headers.set("Cache-Control", "no-cache");
+  });
+
+  // iPads that cached reader.js before it was sent no-cache keep reusing that copy, so the page asks for
+  // the scripts and styles under a new URL whenever the file changes.
+  app.get("/", (c) => {
+    const html = fs.readFileSync(path.join(PUBLIC_DIR, "index.html"), "utf8").replace(
+      /(src|href)="\/(reader\.(?:js|css))"/g,
+      (_, attr, file) => `${attr}="/${file}?v=${Math.trunc(fs.statSync(path.join(PUBLIC_DIR, file)).mtimeMs)}"`,
+    );
+    return c.html(html);
+  });
   app.use("/*", serveStatic({ root: PUBLIC_DIR }));
 
   return { app, history };
