@@ -26,6 +26,14 @@
   // Placed by the server on the block that was at the top of Chrome's window when sent.
   var ANCHOR_ID = 'ipad-send-continue';
   var ANCHOR_MARGIN_PX = 16;
+  // Autoscroll moves 1px per tick, so the interval sets the speed. 70ms on the iPad 1 matches 60ms on an
+  // iPhone 16e, whose CSS pixels are about 17% smaller. No requestAnimationFrame on iOS 5.
+  var SCROLL_INTERVAL_MS = 70;
+  var SCROLL_MIN_MS = 20;
+  var SCROLL_MAX_MS = 250;
+  var SCROLL_STEP = 1.25;
+  var autoscrollTimer = null;
+  var touching = false;
 
   function $(id) { return document.getElementById(id); }
 
@@ -97,6 +105,41 @@
 
   function show(id, display) { $(id).style.display = display ? 'inline-block' : 'none'; }
 
+  function scrollInterval() {
+    return parseInt(getPref('scrollInterval', String(SCROLL_INTERVAL_MS)), 10) || SCROLL_INTERVAL_MS;
+  }
+
+  function changeScrollSpeed(faster) {
+    var interval = faster ? scrollInterval() / SCROLL_STEP : scrollInterval() * SCROLL_STEP;
+    setPref('scrollInterval', String(Math.round(Math.max(SCROLL_MIN_MS, Math.min(SCROLL_MAX_MS, interval)))));
+  }
+
+  function tick() {
+    var before = window.pageYOffset;
+    // Hold still while a finger is down so dragging by hand doesn't fight the timer.
+    if (!touching) {
+      window.scrollBy(0, 1);
+      if (window.pageYOffset === before) { stopAutoscroll(); return; } // reached the end
+    }
+    autoscrollTimer = setTimeout(tick, scrollInterval());
+  }
+
+  function startAutoscroll() {
+    if (autoscrollTimer || !shownId) return;
+    $('autoscroll').className = 'on';
+    show('slower', true);
+    show('faster', true);
+    autoscrollTimer = setTimeout(tick, scrollInterval());
+  }
+
+  function stopAutoscroll() {
+    clearTimeout(autoscrollTimer);
+    autoscrollTimer = null;
+    $('autoscroll').className = '';
+    show('slower', false);
+    show('faster', false);
+  }
+
   function render(state) {
     var doc = state.current;
     show('previous', state.hasPrevious);
@@ -105,6 +148,7 @@
     var currentId = doc ? doc.id : null;
     if (currentId === shownId) return;
     shownId = currentId;
+    stopAutoscroll();
 
     if (!doc) {
       $('article').innerHTML = EMPTY_HTML;
@@ -271,12 +315,24 @@
   onTap('theme', cycleTheme);
   onTap('previous', function () { go(-1); });
   onTap('next', function () { go(1); });
+  onTap('autoscroll', function () { if (autoscrollTimer) stopAutoscroll(); else startAutoscroll(); });
+  onTap('slower', function () { changeScrollSpeed(false); });
+  onTap('faster', function () { changeScrollSpeed(true); });
 
+  document.addEventListener('touchstart', function () { touching = true; }, false);
+  document.addEventListener('touchend', function () { touching = false; }, false);
+  document.addEventListener('touchcancel', function () { touching = false; }, false);
+
+  // Debounced, except during autoscroll: its scroll events never stop, so a debounce would never save.
   window.addEventListener('scroll', function () {
     var id = shownId;
     if (!id) return;
+    if (autoscrollTimer && saveScrollTimer) return;
     clearTimeout(saveScrollTimer);
-    saveScrollTimer = setTimeout(function () { setPref('pos:' + id, String(window.pageYOffset)); }, 300);
+    saveScrollTimer = setTimeout(function () {
+      saveScrollTimer = null;
+      setPref('pos:' + id, String(window.pageYOffset));
+    }, 300);
   }, false);
 
   // Safari kills or hangs XHRs while the screen is locked; restart polling when we come back.

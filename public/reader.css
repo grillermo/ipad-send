@@ -12,6 +12,8 @@ html.dark a { color: #8ab4f8; }
 #previous { left: 8px; }
 #next { right: 8px; }
 #original { display: none; }
+#autoscroll.on { background: #555; border-radius: 4px; line-height: 32px; margin: 6px 0; }
+#slower, #faster { display: none; font-weight: bold; }
 #status { display: inline-block; width: 10px; height: 10px; border-radius: 5px; background: #4c4; margin-left: 8px; vertical-align: middle; }
 #status.offline { background: #888; }
 
