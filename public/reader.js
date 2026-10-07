@@ -33,6 +33,11 @@
   var SCROLL_MAX_MS = 250;
   var SCROLL_STEP = 1.6;
   var autoscrollTimer = null;
+  // Markdown documents get a fixed index bar at the top. iOS 5 has no position: sticky.
+  var TOC_BAR_PX = 40;
+  var tocHeadings = [];
+  var tocCurrent = -1;
+  var tocTimer = null;
   var touching = false;
 
   function $(id) { return document.getElementById(id); }
@@ -149,9 +154,11 @@
     if (currentId === shownId) return;
     shownId = currentId;
     stopAutoscroll();
+    $('doctitle').textContent = doc ? doc.title || doc.url : '';
 
     if (!doc) {
       $('article').innerHTML = EMPTY_HTML;
+      buildToc();
       show('original', false);
       document.title = 'iPad Send';
       window.scrollTo(0, 0);
@@ -160,6 +167,7 @@
 
     // Never show the previous body under the new id.
     $('article').innerHTML = LOADING_HTML;
+    buildToc();
     show('original', false);
     docRetryDelay = DOC_RETRY_MIN_MS;
     loadDoc(doc);
@@ -195,6 +203,7 @@
       clearTimeout(docWatchdog);
       docRetryDelay = DOC_RETRY_MIN_MS;
       $('article').innerHTML = header(doc) + html;
+      buildToc();
       if (safeUrl(doc.url) === '#') {
         show('original', false);
       } else {
@@ -225,7 +234,7 @@
     function jump() {
       if (shownId !== id) return;
       if (landedAt !== null && window.pageYOffset !== landedAt) return;
-      window.scrollTo(0, anchor ? Math.max(0, pageTop(anchor) - ANCHOR_MARGIN_PX) : 0);
+      window.scrollTo(0, anchor ? Math.max(0, pageTop(anchor) - topMargin()) : 0);
       landedAt = window.pageYOffset; // the page may still be too short to reach the anchor
     }
 
@@ -234,6 +243,67 @@
     for (i = 0; i < images.length; i++) {
       if (!images[i].complete) images[i].onload = images[i].onerror = jump;
     }
+  }
+
+  // Room above a block so it lands below the index bar, when there is one.
+  function topMargin() {
+    return ANCHOR_MARGIN_PX + (tocHeadings.length ? TOC_BAR_PX : 0);
+  }
+
+  function buildToc() {
+    var headings = $('article').querySelectorAll('.md h1, .md h2, .md h3');
+    var minLevel = 3;
+    var html = '';
+    var i;
+    tocHeadings = [];
+    tocCurrent = -1;
+    for (i = 0; i < headings.length; i++) {
+      tocHeadings.push(headings[i]);
+      minLevel = Math.min(minLevel, parseInt(headings[i].tagName.charAt(1), 10));
+    }
+    for (i = 0; i < tocHeadings.length; i++) {
+      html += '<a href="#" data-toc="' + i + '" class="toc-l' + (parseInt(tocHeadings[i].tagName.charAt(1), 10) - minLevel) +
+        '">' + escapeHtml(tocHeadings[i].textContent) + '</a>';
+    }
+    $('toc-list').innerHTML = html;
+    $('toc-list').style.display = 'none';
+    document.body.className = tocHeadings.length ? 'has-toc' : '';
+    updateTocCurrent();
+  }
+
+  // The section being read is the last heading at or above the bar's bottom edge.
+  function updateTocCurrent() {
+    var limit = window.pageYOffset + topMargin() + 1;
+    var current = -1;
+    var items = $('toc-list').getElementsByTagName('a');
+    for (var i = 0; i < tocHeadings.length && pageTop(tocHeadings[i]) <= limit; i++) current = i;
+    if (current === tocCurrent) return;
+    if (items[tocCurrent]) items[tocCurrent].className = items[tocCurrent].className.replace(' current', '');
+    if (items[current]) items[current].className += ' current';
+    tocCurrent = current;
+    $('toc-current').textContent = current === -1 ? 'Contents' : tocHeadings[current].textContent;
+  }
+
+  function toggleToc() {
+    var list = $('toc-list');
+    var current = list.getElementsByTagName('a')[tocCurrent];
+    if (list.style.display === 'block') { list.style.display = 'none'; return; }
+    updateTocCurrent();
+    list.style.maxHeight = Math.max(120, window.innerHeight - TOC_BAR_PX - 64) + 'px';
+    list.style.display = 'block';
+    list.scrollTop = current ? Math.max(0, current.offsetTop - 80) : 0;
+  }
+
+  function jumpToSection(event) {
+    var target = event.target;
+    // Old Safari can report the text node itself as the target.
+    while (target && target !== this && (target.nodeType !== 1 || !target.getAttribute('data-toc'))) target = target.parentNode;
+    if (!target || target === this) return false;
+    var heading = tocHeadings[parseInt(target.getAttribute('data-toc'), 10)];
+    $('toc-list').style.display = 'none';
+    if (heading) window.scrollTo(0, Math.max(0, pageTop(heading) - topMargin()));
+    updateTocCurrent();
+    return false;
   }
 
   function refreshState() {
@@ -316,6 +386,8 @@
   onTap('previous', function () { go(-1); });
   onTap('next', function () { go(1); });
   onTap('autoscroll', function () { if (autoscrollTimer) stopAutoscroll(); else startAutoscroll(); });
+  onTap('toc-toggle', toggleToc);
+  $('toc-list').onclick = jumpToSection;
   onTap('slower', function () { changeScrollSpeed(false); });
   onTap('faster', function () { changeScrollSpeed(true); });
 
@@ -337,6 +409,10 @@
 
   // Debounced, except during autoscroll: its scroll events never stop, so a debounce would never save.
   window.addEventListener('scroll', function () {
+    // Throttled, since autoscroll fires a scroll event every tick.
+    if (tocHeadings.length && !tocTimer) {
+      tocTimer = setTimeout(function () { tocTimer = null; updateTocCurrent(); }, 200);
+    }
     var id = shownId;
     if (!id) return;
     if (autoscrollTimer && saveScrollTimer) return;
