@@ -14,6 +14,7 @@ const MIN_ARTICLE_TEXT = 140;
 const ANCHOR_MARKER = "data-ipad-send-anchor";
 const ANCHOR_ID = "ipad-send-continue";
 const TEXT_NODE = 3;
+const GITHUB_BLOB = /^(https:\/\/github\.com\/[^\/]+\/[^\/]+)\/blob\//;
 const CALLOUT_KINDS = ["note", "tip", "important", "warning", "caution"];
 const CALLOUT_LABELS = {
   note: "note", info: "note", tip: "tip", hint: "tip", important: "important",
@@ -41,6 +42,7 @@ export function extract(html, pageUrl, { imageUrl }) {
 // element on the closest line that starts at or before it.
 export function extractMarkdown(html, pageUrl, { imageUrl, line }) {
   const document = load(html, pageUrl);
+  githubRawImages(document);
   const positioned = [...document.body.querySelectorAll("[data-pos]")];
 
   if (line > 0) {
@@ -134,6 +136,13 @@ function markTasks(document) {
     box.className = match[1] === "☒" ? "task done" : "task";
     li.prepend(box);
     li.classList.add("task-item");
+  }
+}
+
+// Sent from a GitHub blob page, relative images resolve to blob URLs, which are HTML pages; /raw/ serves the file.
+function githubRawImages(document) {
+  for (const img of document.querySelectorAll("img[src]")) {
+    img.setAttribute("src", img.getAttribute("src").replace(GITHUB_BLOB, "$1/raw/"));
   }
 }
 
