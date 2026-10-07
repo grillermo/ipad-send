@@ -63,6 +63,13 @@ test("wraps markdown in .md and drops the leading h1 the reader already shows as
   assert.match(content, /<h1[^>]*>Part\stwo<\/h1>/);
 });
 
+test("drops the leading h1 even when the reader was at the top and the anchor sits before it", async () => {
+  const { content } = extractMarkdown(await markdownToHtml("# Title\n\nBody.\n"), PAGE_URL, { imageUrl, line: 1 });
+
+  assert.doesNotMatch(content, />Title</);
+  assert.match(content, /id="ipad-send-continue"/);
+});
+
 test("turns GitHub alerts and **Note:** paragraphs into styled callouts", async () => {
   const content = await renderText(
     "> [!TIP]\n> Native.\n\n**Warning:** loose.\n\n> **Note**: quoted\n> more\n\n**Bold** but no colon.\n",

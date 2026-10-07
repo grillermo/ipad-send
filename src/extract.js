@@ -60,7 +60,9 @@ export function extractMarkdown(html, pageUrl, { imageUrl, line }) {
 
   const title = document.querySelector("h1")?.textContent.trim() || fileName(pageUrl);
   // The reader prints the title as its own h1, so drop a leading one instead of showing it twice.
-  const lead = document.body.firstElementChild;
+  // When the reader was at the top, the anchor marker sits in front of it.
+  let lead = document.body.firstElementChild;
+  if (lead?.hasAttribute(ANCHOR_MARKER)) lead = lead.nextElementSibling;
   if (lead?.tagName === "H1" && lead.textContent.trim() === title) lead.remove();
 
   return {
