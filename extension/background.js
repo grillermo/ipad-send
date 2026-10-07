@@ -7,10 +7,10 @@ async function serverUrl() {
 }
 
 // Runs inside the page, so it must be self-contained.
-// For raw markdown files it returns the source instead (see below).
+// For markdown files (raw, or on a GitHub blob page) it returns the source instead (see below).
 // Otherwise puts numbered empty spans before the text visible in the window (0 = topmost) so the iPad can open
 // at the same spot; the server keeps the topmost one that is part of the article (see src/extract.js).
-function grabPage() {
+async function grabPage() {
   const MARKER = "data-ipad-send-anchor";
   const MAX_MARKERS = 30;
   // Skip the top 10% of the window: sticky site headers usually cover it.
@@ -32,6 +32,67 @@ function grabPage() {
       line = before.toString().split("\n").length;
     }
     return { url: location.href, title: document.title, markdown: pre.textContent, line };
+  }
+
+  // A markdown file on a GitHub blob page: send its source too, so it renders like the raw file does.
+  const blobPath = /^(\/[^/]+\/[^/]+)\/blob\/.+\.(md|markdown|mdown|mkd)$/i;
+  if (location.hostname === "github.com" && blobPath.test(location.pathname)) {
+    const markdown = githubEmbeddedSource() ?? (await githubRawSource());
+    if (markdown !== null) return { url: location.href, title: document.title, markdown, line: githubLine(markdown) };
+  }
+
+  // The page embeds the file's lines in its React payload. GitHub navigates without reloading, so the payload
+  // may belong to a file seen earlier; only trust it when its path is the one in the address bar.
+  function githubEmbeddedSource() {
+    for (const script of document.querySelectorAll('script[data-target="react-app.embeddedData"]')) {
+      try {
+        const { payload } = JSON.parse(script.textContent);
+        const { path, refInfo } = payload.codeViewBlobLayoutRoute;
+        const { ownerLogin, name } = payload.codeViewLayoutRoute.repo;
+        const lines = payload["codeViewBlobLayoutRoute.StyledBlob"].rawLines;
+        const expected = `/${ownerLogin}/${name}/blob/${refInfo.name}/${path}`;
+        if (Array.isArray(lines) && expected.toLowerCase() === decodeURIComponent(location.pathname).toLowerCase()) {
+          return lines.join("\n");
+        }
+      } catch {
+        // Not the blob payload, or GitHub changed its shape.
+      }
+    }
+    return null;
+  }
+
+  // /raw/ redirects to raw.githubusercontent.com, with a token for private repos.
+  async function githubRawSource() {
+    try {
+      const response = await fetch(location.pathname.replace(/^(\/[^/]+\/[^/]+)\/blob\//, "$1/raw/"));
+      return response.ok ? await response.text() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // GitHub's rendered markdown has no source positions, so find the topmost visible block's text in the source.
+  // Text is compared as bare letters and digits, with list markers, link targets and tags dropped, to skip over
+  // markdown syntax. A block's text must start at the start of a source line, but may run on to the next lines.
+  function githubLine(markdown) {
+    const body = document.querySelector("article.markdown-body");
+    if (!body || window.scrollY === 0) return 0;
+    const bare = (text) => text.replace(/\]\([^)]*\)|<[^>]*>/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+    const blocks = [...body.querySelectorAll("h1, h2, h3, h4, h5, h6, p, li, pre, tr")].filter((el) => bare(el.textContent));
+    const index = blocks.findIndex((el) => el.getBoundingClientRect().bottom > top);
+    if (index < 0) return 0;
+
+    const key = bare(blocks[index].textContent).slice(0, 24);
+    let source = "";
+    const starts = markdown.split("\n").map((sourceLine) => {
+      const start = source.length;
+      source += bare(sourceLine.replace(/^[\s>]*([-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?/, ""));
+      return start;
+    });
+    const matches = starts.flatMap((start, i) => (source.startsWith(key, start) && starts[i + 1] !== start ? [i + 1] : []));
+    // Repeated text (e.g. two "Setup" headings): take the same occurrence in the source.
+    const occurrence = blocks.slice(0, index).filter((el) => bare(el.textContent).startsWith(key)).length;
+    return matches[occurrence] ?? matches[0] ?? 0;
   }
 
   const pinned = new Map();

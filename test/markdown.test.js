@@ -89,3 +89,11 @@ test("draws task list checkboxes with css instead of glyphs iOS 5 lacks", async 
   assert.match(content, /<li class="task-item"><span class="task done"><\/span>closed<\/li>/);
   assert.doesNotMatch(content, /[☐☒]/);
 });
+
+test("loads images from /raw/ when the markdown came from a GitHub blob page", async () => {
+  const blobUrl = "https://github.com/acme/docs/blob/main/guide/Strategy.md";
+  const { content } = extractMarkdown(await markdownToHtml(MARKDOWN), blobUrl, { imageUrl, line: 0 });
+
+  assert.ok(content.includes(imageUrl("https://github.com/acme/docs/raw/main/guide/img/chart.png")));
+  assert.match(content, /href="https:\/\/github\.com\/acme\/docs\/blob\/main\/guide\/other\.md"/);
+});

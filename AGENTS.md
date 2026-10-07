@@ -38,6 +38,7 @@ Runtime data is in `data/` (`history.json`, `docs/<id>.html`, `images/` cache). 
 
   It also keeps the topmost anchor marker that survived extraction and turns it into `id="ipad-send-continue"`.
 - Raw markdown files (Chrome's plain-text view of a `.md`) are sent as `{url, title, markdown, line}` instead of html, where `line` is the source line at the top of the window.
+  Markdown files on GitHub blob pages are sent the same way. The source comes from the page's React payload (or `/raw/`), and `line` from matching the topmost visible rendered block's text against the source.
   `src/markdown.js` runs `pandoc -f gfm+sourcepos`, and `extractMarkdown()` puts the anchor before the first element on that line (from `data-pos`), unwraps pandoc's per-word spans, then applies the same sanitization.
 - `src/history.js` is the single source of truth. It holds an ordered list of up to 50 documents and a `current` pointer, plus a `version` counter that increases on every change.
   The state is written atomically (tmp file + rename). Document HTML is stored separately in `data/docs/`.
