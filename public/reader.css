@@ -14,7 +14,7 @@ html.dark a { color: #8ab4f8; }
   font: 15px/40px Helvetica, Arial, sans-serif; }
 body.has-toc #toc { display: block; }
 body.has-toc #article { padding-top: 64px; }
-#toc-toggle { display: block; height: 40px; padding: 0 16px; color: #fff; text-decoration: none;
+#toc-toggle { display: block; height: 40px; padding: 0 56px 0 16px; color: #fff; text-decoration: none;
   overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 #toc-list { display: none; overflow-y: auto; -webkit-overflow-scrolling: touch; border-top: 1px solid #444; }
 #toc-list a { display: block; padding: 10px 16px; line-height: 1.3; color: #ddd; text-decoration: none; border-bottom: 1px solid #333; }
@@ -24,7 +24,6 @@ body.has-toc #article { padding-top: 64px; }
 #previous, #next { position: absolute; top: 0; display: none; }
 #previous { left: 8px; }
 #next { right: 8px; }
-#original { display: none; }
 #autoscroll.on { background: #555; border-radius: 4px; line-height: 32px; margin: 6px 0; }
 #toolbar #slower, #toolbar #faster { display: none; font-weight: bold; font-size: 26px; min-width: 44px; line-height: 36px;
   margin: 4px 2px; padding: 0; background: #3a3a3a; border-radius: 6px; -webkit-tap-highlight-color: transparent; }
@@ -121,3 +120,8 @@ html.dark #article .md .callout.tip .title p { color: #7fd09b; }
 html.dark #article .md .callout.important .title p { color: #c3a3f5; }
 html.dark #article .md .callout.warning .title p { color: #f0b35a; }
 html.dark #article .md .callout.caution .title p { color: #f08a7e; }
+#menu-toggle { position: fixed; top: 0; right: 0; z-index: 30; width: 48px; height: 40px; text-align: center;
+  color: #fff; text-decoration: none; font: 26px/40px Helvetica, Arial, sans-serif; background: #222; border-bottom-left-radius: 6px; }
+#menu { display: none; position: fixed; top: 40px; right: 0; z-index: 30; min-width: 120px; background: #222;
+  border-radius: 0 0 0 6px; font: 18px/44px Helvetica, Arial, sans-serif; }
+#menu a { display: block; padding: 0 20px; color: #fff; text-decoration: none; border-top: 1px solid #333; }

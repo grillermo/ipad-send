@@ -159,7 +159,6 @@
     if (!doc) {
       $('article').innerHTML = EMPTY_HTML;
       buildToc();
-      show('original', false);
       document.title = 'iPad Send';
       window.scrollTo(0, 0);
       return;
@@ -168,7 +167,6 @@
     // Never show the previous body under the new id.
     $('article').innerHTML = LOADING_HTML;
     buildToc();
-    show('original', false);
     docRetryDelay = DOC_RETRY_MIN_MS;
     loadDoc(doc);
   }
@@ -204,12 +202,6 @@
       docRetryDelay = DOC_RETRY_MIN_MS;
       $('article').innerHTML = header(doc) + html;
       buildToc();
-      if (safeUrl(doc.url) === '#') {
-        show('original', false);
-      } else {
-        $('original').href = doc.url;
-        show('original', true);
-      }
       document.title = doc.title || 'iPad Send';
       var saved = getPref('pos:' + doc.id, null);
       if (saved === null) followAnchor(doc.id);
@@ -380,6 +372,10 @@
     $(id).onclick = function () { handler(); return false; };
   }
 
+  onTap('menu-toggle', function () {
+    var menu = $('menu');
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+  });
   onTap('smaller', function () { changeFontSize(-2); });
   onTap('bigger', function () { changeFontSize(2); });
   onTap('theme', cycleTheme);
