@@ -8,13 +8,13 @@ There are three parts: a Chrome MV3 extension, a Node server (Hono), and a reade
 ## Commands
 
 ```bash
-npm install
-npm test                                         # node:test, runs every test/*.test.js
+pnpm install
+pnpm test                                         # node:test, runs every test/*.test.js
 node --test test/extract.test.js                 # one file
 node --test --test-name-pattern="anchor" test/   # tests whose name matches
-npm run lint                                     # ESLint, public/ only (ES5 check for the iPad)
-npm start                                        # foreground server on :7777 (PORT, DATA_DIR env vars)
-./serve                                          # git pull + npm install, then (re)start in tmux session "ipad-send"
+pnpm run lint                                     # ESLint, public/ only (ES5 check for the iPad)
+pnpm start                                        # foreground server on :7777 (PORT, DATA_DIR env vars)
+./serve                                          # git pull + pnpm install, then (re)start in tmux session "ipad-send"
 tail -f log/server.log
 ```
 
@@ -53,7 +53,7 @@ Runtime data is in `data/` (`history.json`, `archive.jsonl`, `docs/<id>.html`, `
 
 ## Constraints
 
-- **`public/` must stay ES5 for Safari 5.1.** That means `var`, no arrow functions, no `Function.prototype.bind`, XHR instead of fetch, and every `localStorage` call wrapped in try/catch (it throws in Private Browsing). `npm run lint` enforces part of this, so run it after touching `public/`.
+- **`public/` must stay ES5 for Safari 5.1.** That means `var`, no arrow functions, no `Function.prototype.bind`, XHR instead of fetch, and every `localStorage` call wrapped in try/catch (it throws in Private Browsing). `pnpm run lint` enforces part of this, so run it after touching `public/`.
 - Every `/api/*` response gets `Cache-Control: no-store`, because old iOS Safari caches XHRs. The reader also adds a `_=<timestamp>` cache-buster to each request.
 - There is no auth. The server binds `0.0.0.0` for home-LAN use only. `extract()` sanitization is the only thing that stops page scripts from running on the iPad, so keep it strict.
 - **Every change under `extension/` bumps `version` in `extension/manifest.json`** (semver: patch for fixes, minor for features).

@@ -5,7 +5,7 @@ Send the current Chrome tab to a 1st-gen iPad (iOS 5.1.1) as clean, readable HTM
 ## Setup
 
 ```bash
-npm install
+pnpm install
 ./serve                         # (re)starts the server on :7777 in tmux session "ipad-send"
 ```
 
@@ -25,9 +25,9 @@ scrolled to the text that was at the top of your Chrome window.
 ## Dev
 
 ```bash
-npm test        # node:test suite
-npm run lint    # ES5 check for the iPad script
-npm start       # foreground server
+pnpm test        # node:test suite
+pnpm run lint    # ES5 check for the iPad script
+pnpm start       # foreground server
 tmux kill-session -t ipad-send   # stop ./serve
 tail -f log/server.log
 ```

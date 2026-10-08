@@ -40,8 +40,8 @@ if [ -z "$(git status --porcelain --untracked-files=no)" ]; then
 else
   echo "==> Local changes present; skipping git pull"
 fi
-echo "==> npm install"
-npm install --no-audit --no-fund
+echo "==> pnpm install"
+pnpm install --frozen-lockfile
 
 # 2. (Re)start the server in a fresh tmux session.
 #    tmux panes don't inherit this shell's env, so pass PATH explicitly.
