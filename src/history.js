@@ -10,6 +10,7 @@ export class History extends EventEmitter {
   #stateFile;
   #legacyFile;
   #docsDir;
+  #archiveFile;
   #limit;
   #state;
 
@@ -19,6 +20,7 @@ export class History extends EventEmitter {
     this.#stateFile = path.join(dataDir, "history.json");
     this.#legacyFile = path.join(dataDir, "queue.json");
     this.#docsDir = path.join(dataDir, "docs");
+    this.#archiveFile = path.join(dataDir, "archive.jsonl");
     this.#limit = limit;
     fs.mkdirSync(this.#docsDir, { recursive: true });
     this.#state = this.#load();
@@ -36,9 +38,11 @@ export class History extends EventEmitter {
     state.docs[id] = doc;
     state.ids.push(id);
     state.current = id;
+    // Old documents leave the navigable history but are kept forever: the HTML stays in docs/
+    // and the metadata moves to archive.jsonl.
     for (const old of state.ids.splice(0, Math.max(0, state.ids.length - this.#limit))) {
+      fs.appendFileSync(this.#archiveFile, `${JSON.stringify(state.docs[old])}\n`);
       delete state.docs[old];
-      fs.rmSync(this.#docPath(old), { force: true });
     }
     this.#changed();
     return doc;

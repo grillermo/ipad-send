@@ -83,11 +83,16 @@ test("a legacy queue.json is carried over so old documents stay reachable", () =
   assert.deepEqual([state.hasPrevious, state.hasNext], [true, true]);
 });
 
-test("documents beyond the limit are deleted so the disk does not fill up", () => {
-  const history = new History(tmpDir(), { limit: 2 });
+test("documents beyond the limit leave the history but stay archived on disk", () => {
+  const dir = tmpDir();
+  const history = new History(dir, { limit: 2 });
   const docs = ["a", "b", "c"].map((title) => history.push(doc(title)));
 
   assert.equal(history.content(docs[0].id), null);
+  assert.equal(fs.readFileSync(path.join(dir, "docs", `${docs[0].id}.html`), "utf8"), "<p>a</p>");
+  const archived = fs.readFileSync(path.join(dir, "archive.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(archived.map((d) => d.id), [docs[0].id]);
+  assert.equal(archived[0].url, "https://example.com/a");
   assert.equal(history.content(docs[1].id), "<p>b</p>");
   history.go(docs[2].id, -1);
   assert.equal(history.snapshot().hasPrevious, false);

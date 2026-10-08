@@ -19,7 +19,7 @@ tail -f log/server.log
 ```
 
 Node ≥ 22 and `pandoc` (3.8+, on PATH or set `PANDOC`) are required.
-Runtime data is in `data/` (`history.json`, `docs/<id>.html`, `images/` cache). Delete it to reset.
+Runtime data is in `data/` (`history.json`, `archive.jsonl`, `docs/<id>.html`, `images/` cache). Delete it to reset.
 `./serve` pulls from the remote named `github`, not `origin`.
 
 ## Architecture
@@ -43,6 +43,7 @@ Runtime data is in `data/` (`history.json`, `docs/<id>.html`, `images/` cache). 
 - `src/history.js` is the single source of truth. It holds an ordered list of up to 50 documents and a `current` pointer, plus a `version` counter that increases on every change.
   The state is written atomically (tmp file + rename). Document HTML is stored separately in `data/docs/`.
   - A new send always becomes `current`.
+  - Documents pushed out of the 50 are never deleted: their HTML stays in `data/docs/` and their metadata is appended to `data/archive.jsonl`.
   - `go(from, step)` only moves if the reader is still on `from`, so a double tap can't skip a document.
   - `waitForChange(since)` backs the `/api/wait` long-poll (25s on the server).
 - `src/images.js` (the `/img?u=&r=` route) fetches images with the page as the Referer. It downscales them with sharp to fit 1024×3000 JPEGs, because iOS 5 has little RAM and won't decode huge images.
