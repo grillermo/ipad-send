@@ -145,3 +145,18 @@ test("a sent markdown file is rendered with pandoc and anchored at the line on s
   const html = await (await app.request(`/api/doc/${id}`)).text();
   assert.match(html, /<span id="ipad-send-continue"><\/span><h2[^>]*>Later/);
 });
+
+test("pin and open endpoints return the new state", async () => {
+  const app = build();
+  const first = await json(send(app));
+  await send(app);
+
+  let state = await json(post(app, "/api/pin", JSON.stringify({ id: first.id, pinned: true })));
+  assert.deepEqual(state.pinned.map((p) => p.id), [first.id]);
+
+  state = await json(post(app, "/api/open", JSON.stringify({ id: first.id })));
+  assert.equal(state.current.id, first.id);
+
+  state = await json(post(app, "/api/pin", JSON.stringify({ id: first.id, pinned: false })));
+  assert.deepEqual(state.pinned, []);
+});

@@ -66,6 +66,18 @@ export function createApp({ dataDir, waitTimeoutMs = 25_000, fetchImpl = fetch }
     return c.json(history.snapshot());
   });
 
+  app.post("/api/pin", async (c) => {
+    const { id, pinned } = (await c.req.json().catch(() => null)) ?? {};
+    history.pin(id, pinned === true);
+    return c.json(history.snapshot());
+  });
+
+  app.post("/api/open", async (c) => {
+    const { id } = (await c.req.json().catch(() => null)) ?? {};
+    history.open(id);
+    return c.json(history.snapshot());
+  });
+
   app.get("/api/wait", async (c) => {
     const version = await history.waitForChange(Number(c.req.query("since")), waitTimeoutMs);
     return c.json({ version });

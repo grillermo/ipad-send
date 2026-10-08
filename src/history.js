@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-const emptyState = () => ({ version: 0, current: null, ids: [], docs: {} });
+const emptyState = () => ({ version: 0, current: null, ids: [], docs: {}, pinned: [] });
 
 // Oldest first. The newest send is always shown; previous/next walk back and forth.
 export class History extends EventEmitter {
@@ -42,7 +42,7 @@ export class History extends EventEmitter {
     // and the metadata moves to archive.jsonl.
     for (const old of state.ids.splice(0, Math.max(0, state.ids.length - this.#limit))) {
       fs.appendFileSync(this.#archiveFile, `${JSON.stringify(state.docs[old])}\n`);
-      delete state.docs[old];
+      if (!state.pinned.includes(old)) delete state.docs[old];
     }
     this.#changed();
     return doc;
@@ -60,14 +60,37 @@ export class History extends EventEmitter {
     return true;
   }
 
+  // Pinned documents stay openable after they fall out of the history.
+  pin(id, on) {
+    const state = this.#state;
+    if (!Object.hasOwn(state.docs, id) || state.pinned.includes(id) === on) return false;
+    if (on) {
+      state.pinned.unshift(id);
+    } else {
+      state.pinned = state.pinned.filter((pinnedId) => pinnedId !== id);
+      if (!state.ids.includes(id) && state.current !== id) delete state.docs[id]; // already archived
+    }
+    this.#changed();
+    return true;
+  }
+
+  open(id) {
+    const state = this.#state;
+    if (!Object.hasOwn(state.docs, id) || state.current === id) return false;
+    state.current = id;
+    this.#changed();
+    return true;
+  }
+
   snapshot() {
-    const { version, current, ids, docs } = this.#state;
+    const { version, current, ids, docs, pinned } = this.#state;
     const index = ids.indexOf(current);
     return {
       version,
       current: current ? docs[current] : null,
       hasPrevious: index > 0,
       hasNext: index !== -1 && index < ids.length - 1,
+      pinned: pinned.map((id) => ({ id, title: docs[id].title, url: docs[id].url })),
     };
   }
 
@@ -90,7 +113,8 @@ export class History extends EventEmitter {
 
   #load() {
     try {
-      return JSON.parse(fs.readFileSync(this.#stateFile, "utf8"));
+      const state = JSON.parse(fs.readFileSync(this.#stateFile, "utf8"));
+      return { ...state, pinned: state.pinned ?? [] };
     } catch {
       return this.#loadLegacy();
     }
@@ -101,7 +125,7 @@ export class History extends EventEmitter {
     try {
       const { version, current, pending, read, docs } = JSON.parse(fs.readFileSync(this.#legacyFile, "utf8"));
       const ids = [...read, current, ...pending].filter(Boolean);
-      return { version, current: current ?? ids.at(-1) ?? null, ids, docs };
+      return { version, current: current ?? ids.at(-1) ?? null, ids, docs, pinned: [] };
     } catch {
       return emptyState();
     }

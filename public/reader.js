@@ -145,14 +145,41 @@
     show('faster', false);
   }
 
+  var pinnedDocs = [];
+
+  function isPinned(id) {
+    for (var i = 0; i < pinnedDocs.length; i++) if (pinnedDocs[i].id === id) return true;
+    return false;
+  }
+
+  function renderPinned() {
+    var pin = $('pin');
+    var pinned = !!shownId && isPinned(shownId);
+    show('pin', !!shownId);
+    pin.textContent = pinned ? 'Pinned' : 'Pin';
+    pin.className = pinned ? 'on' : '';
+    show('pinned-toggle', pinnedDocs.length > 0);
+    var html = '';
+    for (var i = 0; i < pinnedDocs.length; i++) {
+      var d = pinnedDocs[i];
+      html += '<div class="pinned-row' + (d.id === shownId ? ' current' : '') + '">' +
+        '<a class="pinned-open" href="#" data-open="' + escapeHtml(d.id) + '">' + escapeHtml(d.title || d.url) + '</a>' +
+        '<a class="pinned-unpin" href="#" data-unpin="' + escapeHtml(d.id) + '">&#9733;</a></div>';
+    }
+    $('pinned-list').innerHTML = html;
+    if (!pinnedDocs.length) $('pinned-list').style.display = 'none';
+  }
+
   function render(state) {
     var doc = state.current;
     show('previous', state.hasPrevious);
     show('next', state.hasNext);
+    pinnedDocs = state.pinned || [];
 
     var currentId = doc ? doc.id : null;
-    if (currentId === shownId) return;
+    if (currentId === shownId) { renderPinned(); return; }
     shownId = currentId;
+    renderPinned();
     stopAutoscroll();
     $('doctitle').textContent = doc ? doc.title || doc.url : '';
 
@@ -357,15 +384,33 @@
     }
   }
 
-  function go(step) {
-    if (!shownId) return;
-    request('POST', '/api/go', { from: shownId, step: step }, function (text) {
+  function post(url, body) {
+    request('POST', url, body, function (text) {
       var state;
       try { state = JSON.parse(text); } catch (e) { refreshState(); return; }
       version = state.version;
       stateGeneration++; // fresh state supersedes any in-flight refresh chain
       render(state);
     });
+  }
+
+  function go(step) {
+    if (!shownId) return;
+    post('/api/go', { from: shownId, step: step });
+  }
+
+  function pinnedTap(event) {
+    var target = event.target;
+    while (target && target !== this && (target.nodeType !== 1 || !(target.getAttribute('data-open') || target.getAttribute('data-unpin')))) target = target.parentNode;
+    if (!target || target === this) return false;
+    var unpin = target.getAttribute('data-unpin');
+    if (unpin) {
+      post('/api/pin', { id: unpin, pinned: false });
+    } else {
+      $('pinned-list').style.display = 'none';
+      post('/api/open', { id: target.getAttribute('data-open') });
+    }
+    return false;
   }
 
   function onTap(id, handler) {
@@ -376,6 +421,12 @@
     var menu = $('menu');
     menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
   });
+  onTap('pin', function () { if (shownId) post('/api/pin', { id: shownId, pinned: !isPinned(shownId) }); });
+  onTap('pinned-toggle', function () {
+    var list = $('pinned-list');
+    list.style.display = list.style.display === 'block' ? 'none' : 'block';
+  });
+  $('pinned-list').onclick = pinnedTap;
   onTap('smaller', function () { changeFontSize(-2); });
   onTap('bigger', function () { changeFontSize(2); });
   onTap('theme', cycleTheme);

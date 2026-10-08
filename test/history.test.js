@@ -121,3 +121,57 @@ test("waitForChange returns immediately when the client is behind, and on timeou
   assert.equal(await history.waitForChange(-1, 5_000), history.version);
   assert.equal(await history.waitForChange(history.version, 10), history.version);
 });
+
+test("pinning lists a document, unpinning removes it, unknown ids are ignored", () => {
+  const dir = tmpDir();
+  const history = new History(dir);
+  const first = history.push(doc("one"));
+  history.push(doc("two"));
+
+  assert.equal(history.pin("nope", true), false);
+  assert.equal(history.pin(first.id, true), true);
+  assert.equal(history.pin(first.id, true), false);
+  assert.deepEqual(history.snapshot().pinned, [{ id: first.id, title: "one", url: "https://example.com/one" }]);
+  assert.deepEqual(new History(dir).snapshot().pinned.map((p) => p.id), [first.id]);
+
+  assert.equal(history.pin(first.id, false), true);
+  assert.deepEqual(history.snapshot().pinned, []);
+});
+
+test("a pinned document stays readable after it leaves the history, until it is unpinned", () => {
+  const history = new History(tmpDir(), { limit: 2 });
+  const first = history.push(doc("one"));
+  const second = history.push(doc("two"));
+  history.pin(first.id, true);
+  history.push(doc("three"));
+  history.push(doc("four"));
+
+  assert.equal(history.content(first.id), "<p>one</p>");
+  assert.equal(history.content(second.id), null);
+  assert.equal(history.snapshot().pinned.length, 1);
+
+  history.pin(first.id, false);
+  assert.equal(history.content(first.id), null);
+});
+
+test("open makes a pinned document current even when it is outside the history", () => {
+  const history = new History(tmpDir(), { limit: 1 });
+  const first = history.push(doc("one"));
+  history.pin(first.id, true);
+  const second = history.push(doc("two"));
+
+  const before = history.version;
+  assert.equal(history.open("nope"), false);
+  assert.equal(history.version, before);
+  assert.equal(history.open(first.id), true);
+  const state = history.snapshot();
+  assert.equal(state.current.id, first.id);
+  assert.deepEqual([state.hasPrevious, state.hasNext], [false, false]);
+  assert.equal(history.open(second.id), true);
+});
+
+test("a history.json from before pinning loads with nothing pinned", () => {
+  const dir = tmpDir();
+  fs.writeFileSync(path.join(dir, "history.json"), JSON.stringify({ version: 3, current: null, ids: [], docs: {} }));
+  assert.deepEqual(new History(dir).snapshot().pinned, []);
+});
