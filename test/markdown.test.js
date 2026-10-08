@@ -46,6 +46,13 @@ test("anchors at the source line that was at the top of Chrome's window", async 
   assert.match((await render(9)).content, /<span id="ipad-send-continue"><\/span>two/, "blank line keeps the block above");
 });
 
+test("collapses the line breaks pandoc wraps between the h1's words into single spaces", async () => {
+  const result = extractMarkdown(await markdownToHtml("# Test plan\n\nBody.\n"), PAGE_URL, { imageUrl, line: 0 });
+
+  assert.equal(result.title, "Test plan");
+  assert.doesNotMatch(result.content, />Test</, "the leading h1 is still dropped");
+});
+
 test("falls back to the file name when there is no h1", async () => {
   const result = extractMarkdown(await markdownToHtml("Just text."), PAGE_URL, { imageUrl, line: 0 });
 

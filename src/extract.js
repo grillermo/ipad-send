@@ -60,12 +60,15 @@ export function extractMarkdown(html, pageUrl, { imageUrl, line }) {
   markCallouts(document);
   markTasks(document);
 
-  const title = document.querySelector("h1")?.textContent.trim() || fileName(pageUrl);
+  // Pandoc wraps long lines, so the space between two of the h1's words can come out as a newline.
+  const headingText = (el) => el.textContent.replace(/\s+/g, " ").trim();
+  const h1 = document.querySelector("h1");
+  const title = (h1 && headingText(h1)) || fileName(pageUrl);
   // The reader prints the title as its own h1, so drop a leading one instead of showing it twice.
   // When the reader was at the top, the anchor marker sits in front of it.
   let lead = document.body.firstElementChild;
   if (lead?.hasAttribute(ANCHOR_MARKER)) lead = lead.nextElementSibling;
-  if (lead?.tagName === "H1" && lead.textContent.trim() === title) lead.remove();
+  if (lead?.tagName === "H1" && headingText(lead) === title) lead.remove();
 
   return {
     title,
